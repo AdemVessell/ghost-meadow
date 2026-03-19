@@ -11,6 +11,7 @@
  */
 #include "ghost_meadow.h"
 #include "ghost_policy.h"
+#include "ghost_actuator.h"
 #include "ghost_transport.h"
 #include <cstdio>
 #include <cmath>
@@ -72,7 +73,7 @@ static float compute_variance(float* vals, int n) {
 // Nodes — heap-allocated to avoid stack overflow (~120KB each)
 // ---------------------------------------------------------------------------
 static GhostMeadowDefault* nodes[NUM_NODES];
-static GhostPolicyDefault  policy(0.5f, 3);
+static GhostPolicyDefault  policy(0.5f, 3, &GM_ACTUATOR_SILENT);
 
 // ---------------------------------------------------------------------------
 // main
@@ -86,6 +87,33 @@ int main() {
     else {
         printf("  Transport tests: FAILED (%d errors)\n", transport_failures);
         return 1;
+    }
+
+    // --- Actuation test ---
+    printf("=== Actuation Test ===\n");
+    {
+        // Use ESP32 actuator on a small meadow to verify zone transition fires
+        GhostMeadow<1024, 3> act_m(MISSION_KEY, 42);
+        GhostPolicy<1024, 3> act_p(0.0f, 1, &GM_ACTUATOR_ESP32);
+
+        // Fill to high saturation to trigger escalation through zones
+        for (gm_u32 i = 0; i < 800; i++) {
+            gm_u8 buf[4] = { (gm_u8)(i & 0xFF), (gm_u8)((i >> 8) & 0xFF), 0xAC, 0xDC };
+            act_m.seed(buf, 4);
+        }
+        // Need a merge source for quorum
+        GhostMeadow<1024, 3> act_other(MISSION_KEY, 43);
+        gm_u8 obs[] = {0xFF};
+        act_other.seed(obs, 1);
+        act_m.merge(act_other);
+
+        GhostPolicyResult r = act_p.evaluate(act_m);
+        // Zone should have escalated from nominal (0) — actuator printf above confirms
+        if (r.zone_after == GP_ZONE_NOMINAL) {
+            printf("  Actuation test: FAILED (stayed nominal at high saturation)\n");
+            return 1;
+        }
+        printf("  Actuation test: PASSED (zone transition fired)\n\n");
     }
 
     printf("=== Ghost Meadow Convergence Simulation ===\n");

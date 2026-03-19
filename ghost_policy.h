@@ -30,6 +30,20 @@
 #include "ghost_meadow.h"
 
 // ---------------------------------------------------------------------------
+// Forward-declare GhostActuator for optional zone-transition callbacks.
+// Full struct definition lives in ghost_actuator.h.
+// ---------------------------------------------------------------------------
+#ifndef GHOST_ACTUATOR_DECLARED
+#define GHOST_ACTUATOR_DECLARED
+struct GhostActuator {
+    void (*on_nominal)(gm_u8 node_id, gm_f32 sat_pct, gm_u32 sources, gm_u8 epoch);
+    void (*on_yellow)(gm_u8 node_id, gm_f32 sat_pct, gm_u32 sources, gm_u8 epoch);
+    void (*on_orange)(gm_u8 node_id, gm_f32 sat_pct, gm_u32 sources, gm_u8 epoch);
+    void (*on_red)(gm_u8 node_id, gm_f32 sat_pct, gm_u32 sources, gm_u8 epoch);
+};
+#endif
+
+// ---------------------------------------------------------------------------
 // Compile-time policy defaults (overridable)
 // ---------------------------------------------------------------------------
 #ifndef GP_SAT_YELLOW_DEFAULT
@@ -84,7 +98,8 @@ public:
     //   autonomy: 0.0 (full human control) to 1.0 (full autonomy)
     //   quorum_k: minimum merge sources required for red-zone action
     // -----------------------------------------------------------------------
-    GhostPolicy(gm_f32 autonomy = 0.5f, gm_u32 quorum_k = GP_QUORUM_K_DEFAULT)
+    GhostPolicy(gm_f32 autonomy = 0.5f, gm_u32 quorum_k = GP_QUORUM_K_DEFAULT,
+                const GhostActuator* actuator = nullptr)
         : _autonomy(autonomy < 0.0f ? 0.0f : (autonomy > 1.0f ? 1.0f : autonomy))
         , _quorum_k(quorum_k)
         , _sat_yellow(GP_SAT_YELLOW_DEFAULT)
@@ -93,6 +108,7 @@ public:
         , _ghost_trigger_sat(GP_GHOST_TRIGGER_SAT)
         , _ghost_armed(true)
         , _eval_count(0)
+        , _actuator(actuator)
     {}
 
     // -----------------------------------------------------------------------
@@ -136,6 +152,15 @@ public:
         r.zone_after = target_zone;
         meadow.set_zone(target_zone);
 
+        // Actuate on zone transition
+        if (_actuator && r.zone_after != r.zone_before) {
+            typedef void (*act_fn)(gm_u8, gm_f32, gm_u32, gm_u8);
+            act_fn fns[4] = { _actuator->on_nominal, _actuator->on_yellow,
+                              _actuator->on_orange, _actuator->on_red };
+            if (target_zone < 4 && fns[target_zone])
+                fns[target_zone](st.node_id, sat, st.merge_source_count, st.epoch_id);
+        }
+
         // Ghost trigger — fires once when saturation crosses threshold
         gm_f32 ghost_threshold = _ghost_trigger_sat + (_autonomy * 10.0f);
         if (ghost_threshold > 100.0f) ghost_threshold = 100.0f;
@@ -171,6 +196,7 @@ public:
     }
 
     void set_ghost_trigger_sat(gm_f32 sat) { _ghost_trigger_sat = sat; }
+    void set_actuator(const GhostActuator* act) { _actuator = act; }
 
 private:
     gm_f32 _autonomy;           // 0.0 = human control, 1.0 = full autonomy
@@ -181,6 +207,7 @@ private:
     gm_f32 _ghost_trigger_sat;  // base saturation for ghost trigger
     gm_bool _ghost_armed;       // one-shot guard
     gm_u32 _eval_count;         // total evaluations
+    const GhostActuator* _actuator; // optional zone-transition callbacks
 };
 
 // ---------------------------------------------------------------------------
