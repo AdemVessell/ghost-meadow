@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "swarm_state.json",
+  "title": "Ghost Meadow Swarm State",
+  "description": "Schema for swarm_state.json v1.1 — telemetry export from GhostSwarmState struct (ghost_meadow.h). Consumed by Layer B policy and external monitoring.",
+  "type": "object",
+  "required": [
+    "node_id",
+    "epoch_id",
+    "saturation_pct",
+    "merge_source_count",
+    "merge_delta_last",
+    "ghost_trigger_count",
+    "false_neg_budget",
+    "layer_b_zone",
+    "total_merges_lifetime"
+  ],
+  "properties": {
+    "node_id": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 255,
+      "description": "Unique identifier for this node in the swarm (gm_u8)."
+    },
+    "epoch_id": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 255,
+      "description": "Current epoch counter. Increments on each decay() call (gm_u8)."
+    },
+    "saturation_pct": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 100.0,
+      "description": "Meadow saturation as a percentage (0.0–100.0). Ratio of set bits to total bits."
+    },
+    "merge_source_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of distinct merge sources seen this epoch. Used by quorum guard."
+    },
+    "merge_delta_last": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Bits newly set by the last merge operation. Canary: must be >= 0 (OR-monotonicity invariant)."
+    },
+    "ghost_trigger_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Cumulative ghost trigger activations. Managed by Layer B, stored in Layer A."
+    },
+    "false_neg_budget": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "False negative budget. Always 0.0 within an epoch (append-only guarantee). Layer B manages across epoch boundaries."
+    },
+    "layer_b_zone": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3,
+      "description": "Current escalation zone set by Layer B policy. 0=nominal, 1=yellow, 2=orange, 3=red."
+    },
+    "total_merges_lifetime": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total number of merge operations across all epochs for this node."
+    }
+  },
+  "additionalProperties": false
+}
