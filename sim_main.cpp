@@ -11,6 +11,7 @@
  */
 #include "ghost_meadow.h"
 #include "ghost_policy.h"
+#include "ghost_transport.h"
 #include <cstdio>
 #include <cmath>
 
@@ -77,6 +78,16 @@ static GhostPolicyDefault  policy(0.5f, 3);
 // main
 // ---------------------------------------------------------------------------
 int main() {
+    // --- Transport tests ---
+    printf("=== Transport Tests ===\n");
+    int transport_failures = gm_run_transport_tests();
+    if (transport_failures == 0)
+        printf("  Transport tests: ALL PASSED (3/3)\n\n");
+    else {
+        printf("  Transport tests: FAILED (%d errors)\n", transport_failures);
+        return 1;
+    }
+
     printf("=== Ghost Meadow Convergence Simulation ===\n");
     printf("Nodes: %d | Steps: %d | Contact range: +/-%d | Decay at step %d\n\n",
            NUM_NODES, NUM_STEPS, CONTACT_RANGE, DECAY_STEP);
