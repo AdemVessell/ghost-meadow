@@ -1,2 +1,4 @@
 sim_main
 ghost_chaos
+test_hash_crossval
+__pycache__/

@@ -405,9 +405,9 @@ static bool scenario_packet_corruption() {
     delete[] wire;
     for (int i = 0; i < N; i++) delete nodes[i];
 
-    // Corrupted packets that happen to flip bits that don't affect checksum
-    // are exceedingly rare with XOR checksum — but possible. We allow up to
-    // 0.5% false acceptance rate.
+    // CRC-16 catches all single-bit, double-bit, and odd-count errors,
+    // plus all burst errors up to 16 bits. Random byte-flip corruption
+    // has ~1/65536 chance of going undetected. We allow up to 0.5%.
     float false_accept_rate = corrupted_packets > 0
         ? (float)corrupted_merges / (float)corrupted_packets : 0.0f;
     bool checksum_ok = false_accept_rate < 0.005f;
