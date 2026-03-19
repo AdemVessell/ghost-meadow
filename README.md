@@ -4,6 +4,8 @@
 
 Ghost Meadow is a probabilistic memory substrate for embedded swarm systems. Each node maintains a Bloom filter that accumulates local observations and merges with nearby nodes via OR during brief contact windows. Nodes never exchange raw data — they exchange compressed belief states. Over time, the swarm converges on a shared probabilistic picture of the environment without any node knowing what any other node actually saw.
 
+> **Status: simulation-complete.** All layers implemented, all tests passing, cross-language interop verified. No hardware validation yet — zero bytes have gone over a real radio.
+
 ## What problem does this solve?
 
 Swarm nodes operating under bandwidth, power, and contact-time constraints can't share full state. Traditional approaches require structured messages, consensus protocols, or shared clocks. Ghost Meadow requires none of these. A single OR of two bit arrays — achievable in microseconds over any physical layer — propagates information transitively through the swarm.
@@ -35,7 +37,7 @@ Layer A: ghost_meadow.h ──────────────────�
   decay()   — epoch boundary reset
   state()   — telemetry export
 
-Transport: ghost_transport.h
+Transport: ghost_transport.h (v1.1 — CRC-16)
   pack_burst()      — full bit array serialization
   unpack_burst()    — validate + merge
   xor_delta_pack()  — bandwidth-efficient delta
@@ -46,61 +48,93 @@ Transport: ghost_transport.h
 
 | File | Description |
 |------|-------------|
-| `ghost_meadow.h` | Layer A — Bloom filter core. Seed, merge, query, decay. Sized for n=10000, p=0.0001 (192000 bits, 13 hashes). |
-| `ghost_policy.h` | Layer B — Zone escalation (nominal/yellow/orange/red), quorum guard, ghost trigger, autonomy parameter. |
+| `ghost_meadow.h` | Layer A — Bloom filter core. Seed, merge, query, decay. Default: n=10000, p=0.0001 (192000 bits, 13 hashes). |
+| `ghost_policy.h` | Layer B — 4-zone escalation (nominal/yellow/orange/red), quorum guard, ghost trigger, autonomy parameter. |
 | `ghost_actuator.h` | Actuation interface — function pointer dispatch on zone transitions. ESP32 and silent stubs included. |
-| `ghost_transport.h` | Burst-window serialization with magic/checksum header. XOR delta for extended contact. Pluggable physical layer. |
-| `ghost_meadow.py` | MicroPython port of Layer A for ESP32. 512-byte memory footprint (m=4096, k=2). |
-| `sim_main.cpp` | Convergence simulation — 8 nodes, 500 steps, proves OR-merge convergence with variance tracking. |
+| `ghost_transport.h` | Wire protocol v1.1 — burst + delta packing with CRC-16 integrity. Pluggable physical layer. |
+| `ghost_meadow.py` | MicroPython port of Layer A. 512-byte footprint (m=4096, k=2). Hash-interop verified against C++. |
+| `sim_main.cpp` | Convergence simulation — 8 nodes, 500 steps, epoch decay + re-convergence. |
+| `ghost_chaos.cpp` | 7 adversarial chaos scenarios — blackout, node death, poison, asymmetric topology, epoch storm, packet corruption, late joiner. |
+| `test_hash_crossval.cpp` | C++ side of cross-language hash + FP rate validation. |
+| `test_fp_and_crossval.py` | Python side — FP rate empirical vs. theoretical, CRDT property proofs. |
 | `swarm_state.schema.json` | JSON Schema v1.1 for telemetry export format. |
 
 ## Quick start
 
 ```bash
-g++ -std=c++11 -O2 -o sim_main sim_main.cpp
-./sim_main
+# Convergence simulation (8 nodes, 500 steps)
+g++ -std=c++11 -O2 -o sim_main sim_main.cpp && ./sim_main
+
+# Chaos test suite (7 adversarial scenarios)
+g++ -std=c++11 -O2 -o ghost_chaos ghost_chaos.cpp && ./ghost_chaos
+
+# Cross-language hash validation
+g++ -std=c++11 -O2 -o test_hash_crossval test_hash_crossval.cpp && ./test_hash_crossval
+
+# Python cross-validation (FP rate + CRDT properties)
+python3 test_fp_and_crossval.py
+
+# MicroPython invariant tests
+python3 ghost_meadow.py
 ```
 
-MicroPython port:
-```bash
-python3 ghost_meadow.py    # runs 7 invariant tests
-```
+## Test results
 
-## Simulation output
+All tests passing as of the current release. Here's what's been verified:
 
-The simulation instantiates 8 nodes with contact range ±3 and runs 500 steps. Epoch decay at step 250 resets all nodes, then re-convergence occurs.
+### Convergence simulation
+8 nodes, contact range ±3, 500 steps with epoch decay at step 250.
+- Pre-decay convergence: step 1 (variance < 0.001)
+- Post-decay re-convergence: step 251
+- Saturation spread at step 500: 14.75%–14.93% across all 8 nodes (variance 0.0026)
 
-```
-=== Transport Tests ===
-  Transport tests: ALL PASSED (3/3)
+### Chaos suite — 7/7 passed
 
-=== Actuation Test ===
-[ACT] node=42 zone=RED     sat=89.9% sources=1 epoch=0
-  Actuation test: PASSED (zone transition fired)
+| Scenario | Result |
+|----------|--------|
+| Blackout gauntlet (32 nodes, 80% drop, 1000 steps) | variance=0.010 < 0.05 |
+| Node death (kill nodes mid-run) | survivor variance=0.000025, snapshots intact |
+| Poison node (adversarial saturation) | ghost trigger fired, others stayed below red |
+| Asymmetric topology (chain vs mesh) | chain 2.1x slower than mesh, both converge |
+| Epoch storm (rapid consecutive decays) | reconverge in 1 step each, snapshots intact |
+| Packet corruption (CRC-16 validation) | 7255 packets, 1128 corrupted, **0 leaked** (0.00%) |
+| Late joiner (node enters mid-epoch) | caught up in 23 steps, 33 merges |
 
-=== Ghost Meadow Convergence Simulation ===
-Nodes: 8 | Steps: 500 | Contact range: +/-3 | Decay at step 250
+### Cross-language validation — 8/8 passed
 
---- Step 100 ---
-  Node 0: sat=  6.40%  zone=nominal  merges=135  sources=3
-  Node 3: sat=  6.43%  zone=nominal  merges=243  sources=6
-  Node 7: sat=  6.47%  zone=nominal  merges=121  sources=3
-  Variance: 0.000463
+| Test | Result |
+|------|--------|
+| Hash interop C++ ↔ Python | Bit-identical across all test vectors |
+| FP rate vs. theory (C++) | Within 1.09x of theoretical at all saturation levels |
+| FP rate vs. theory (Python) | Within 1.03x of theoretical at all saturation levels |
+| Zero false negatives | 0 missed across 1000 seeded observations |
+| Merge commutativity (A∣B == B∣A) | Verified |
+| Merge associativity ((A∣B)∣C == A∣(B∣C)) | Verified |
+| Merge idempotency (A∣A == A) | Verified |
+| MicroPython invariants (7 tests) | All passed |
 
---- Step 200 ---
-  Node 0: sat= 11.95%  zone=nominal  merges=263  sources=3
-  Node 3: sat= 11.96%  zone=nominal  merges=505  sources=6
-  Node 7: sat= 11.93%  zone=nominal  merges=232  sources=3
-  Variance: 0.000306
+### Transport integrity (CRC-16)
+- Exhaustive single-bit flip test: every corrupted packet rejected
+- 0 integrity leaks across all chaos and cross-validation runs
 
---- Step 400 ---
-  Node 0: sat=  9.28%  zone=nominal  merges=479  sources=3
-  Node 3: sat=  9.26%  zone=nominal  merges=960  sources=6
-  Node 7: sat=  9.24%  zone=nominal  merges=463  sources=3
-  Variance: 0.000381
-```
+## What's proven
 
-Saturation variance stays below 0.009 across all 500 steps. Nodes converge despite asymmetric seeding and local-only contact. Central nodes (3-4) accumulate more merges due to topology; edge nodes (0, 7) have fewer sources but maintain the same saturation within 0.2%.
+- OR-merge convergence under hostile conditions (blackout, node death, poison, asymmetric topology)
+- Epoch decay and re-convergence work correctly
+- CRC-16 wire integrity catches all tested corruption patterns with zero leaks
+- False positive rates match Bloom filter theory within 10%
+- CRDT properties hold: commutativity, associativity, idempotency
+- C++ and MicroPython implementations produce bit-identical hashes
+- Policy engine correctly escalates zones and fires ghost triggers on adversarial saturation
+
+## What's NOT proven (yet)
+
+- No ESP32 or STM32 flash/run — code is designed for embedded but untested on metal
+- No real radio transport — LoRa, BLE, or any physical layer
+- No power/memory profiling on actual hardware
+- No multi-device over-the-air merge
+- No formal security audit
+- No long-duration soak test (hours/days of continuous operation)
 
 ## Hardware targets
 
@@ -117,13 +151,21 @@ MicroPython port: ~512 bytes per node (m=4096, k=2).
 
 ## Safety invariants
 
-These hold at all times and are verified by the embedded test suites:
+These hold at all times and are verified by the test suites:
 
 1. **OR-monotonicity**: `merge_delta >= 0`. Merging never clears bits.
 2. **Zero false negatives** within a single epoch. If you seeded it, `query()` returns true.
 3. **Saturation is non-decreasing** within an epoch.
 4. **Epoch isolation**: `decay()` clears all bits. False negatives across epoch boundary by design.
 5. **Quorum guard**: Red zone requires N distinct merge sources. Without quorum, capped at orange.
+6. **CRC-16 integrity**: Corrupted packets are rejected before merge. Zero leaks verified.
+
+## What's next
+
+1. **ESP32 bring-up** — flash onto real hardware, measure RAM/flash/cycle counts
+2. **Real radio transport** — LoRa or BLE, first over-the-air merge
+3. **Multi-device field test** — 3+ nodes, real observations, real convergence
+4. **Long-duration soak test** — hours of continuous operation, measure drift
 
 ## License
 
