@@ -1,4 +1,7 @@
 sim_main
 ghost_chaos
 test_hash_crossval
+test_profiles_persist
 __pycache__/
+swarm_topology.png
+swarm_timeline.png

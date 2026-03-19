@@ -4,7 +4,7 @@
 
 Ghost Meadow is a probabilistic memory substrate for embedded swarm systems. Each node maintains a Bloom filter that accumulates local observations and merges with nearby nodes via OR during brief contact windows. Nodes never exchange raw data — they exchange compressed belief states. Over time, the swarm converges on a shared probabilistic picture of the environment without any node knowing what any other node actually saw.
 
-> **Status: simulation-complete.** All layers implemented, all tests passing, cross-language interop verified. No hardware validation yet — zero bytes have gone over a real radio.
+> **Status: tooling-complete.** All layers implemented, all tests passing, cross-language interop verified. Now includes: configurable node profiles, persistence layer, topology visualizer, interactive browser demo, and formal TLA+ spec. No hardware validation yet — zero bytes have gone over a real radio.
 
 ## What problem does this solve?
 
@@ -57,6 +57,13 @@ Transport: ghost_transport.h (v1.1 — CRC-16)
 | `ghost_chaos.cpp` | 7 adversarial chaos scenarios — blackout, node death, poison, asymmetric topology, epoch storm, packet corruption, late joiner. |
 | `test_hash_crossval.cpp` | C++ side of cross-language hash + FP rate validation. |
 | `test_fp_and_crossval.py` | Python side — FP rate empirical vs. theoretical, CRDT property proofs. |
+| `ghost_profiles.h` | Configurable node profiles — Tiny/Micro/Standard/Full sizing with heterogeneous merge support. |
+| `ghost_persist.h` | Persistence layer — snapshot save/restore to flat buffer with CRC-16 integrity. |
+| `swarm_visualizer.py` | Network topology visualizer — terminal (ANSI) and matplotlib replay of merge propagation. |
+| `ghost_meadow_wasm.html` | Interactive browser demo — JS port of core algorithm with real-time swarm visualization. |
+| `GhostMeadow.tla` | Formal TLA+ specification — CRDT properties, quorum guard, convergence proofs. |
+| `GhostMeadow.cfg` | TLC model checker configuration for small-model verification. |
+| `test_profiles_persist.cpp` | Tests for configurable profiles and persistence layer. |
 | `swarm_state.schema.json` | JSON Schema v1.1 for telemetry export format. |
 
 ## Quick start
@@ -76,6 +83,18 @@ python3 test_fp_and_crossval.py
 
 # MicroPython invariant tests
 python3 ghost_meadow.py
+
+# Profile & persistence tests
+g++ -std=c++11 -O2 -o test_profiles_persist test_profiles_persist.cpp && ./test_profiles_persist
+
+# Swarm topology visualizer (terminal)
+python3 swarm_visualizer.py --nodes 8 --steps 200
+
+# Swarm topology visualizer (matplotlib)
+python3 swarm_visualizer.py --plot --nodes 16 --topology ring
+
+# Interactive browser demo — open in any browser
+open ghost_meadow_wasm.html
 ```
 
 ## Test results
@@ -127,6 +146,12 @@ All tests passing as of the current release. Here's what's been verified:
 - C++ and MicroPython implementations produce bit-identical hashes
 - Policy engine correctly escalates zones and fires ghost triggers on adversarial saturation
 
+- Heterogeneous merge between different-sized nodes preserves OR-monotonicity
+- Persistence save/restore preserves query results and saturation across reboot
+- CRC-16 integrity on persist buffers catches corruption
+- TLA+ model verifies CRDT properties (commutativity, associativity, idempotency, OR-monotonicity)
+- TLA+ quorum guard invariant holds across all reachable states
+
 ## What's NOT proven (yet)
 
 - No ESP32 or STM32 flash/run — code is designed for embedded but untested on metal
@@ -166,6 +191,8 @@ These hold at all times and are verified by the test suites:
 2. **Real radio transport** — LoRa or BLE, first over-the-air merge
 3. **Multi-device field test** — 3+ nodes, real observations, real convergence
 4. **Long-duration soak test** — hours of continuous operation, measure drift
+5. **TLC model checking** — run TLA+ spec through TLC with larger state spaces
+6. **WASM compilation** — compile C++ core to WASM via Emscripten for native-speed browser demo
 
 ## License
 

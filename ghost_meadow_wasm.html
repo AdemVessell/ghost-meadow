@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost Meadow — Interactive Swarm Simulation</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: #0a0a0f;
+    color: #e0e0e0;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+}
+#header {
+    padding: 12px 20px;
+    background: #111118;
+    border-bottom: 1px solid #2a2a3a;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+#header h1 { font-size: 16px; color: #7ec8e3; }
+#header .subtitle { font-size: 11px; color: #666; }
+#controls {
+    padding: 8px 20px;
+    background: #0d0d14;
+    border-bottom: 1px solid #1a1a2a;
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.ctrl-group { display: flex; align-items: center; gap: 6px; }
+.ctrl-group label { font-size: 11px; color: #888; }
+.ctrl-group input, .ctrl-group select {
+    background: #1a1a2a;
+    border: 1px solid #333;
+    color: #ddd;
+    padding: 3px 6px;
+    font-size: 11px;
+    font-family: inherit;
+    border-radius: 3px;
+}
+.ctrl-group input[type="range"] { width: 80px; }
+button {
+    background: #1a3a5a;
+    border: 1px solid #2a5a8a;
+    color: #7ec8e3;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    border-radius: 3px;
+}
+button:hover { background: #2a4a6a; }
+button.active { background: #2a5a2a; border-color: #4a8a4a; color: #7ee37e; }
+#main { display: flex; height: calc(100vh - 90px); }
+#canvas-wrap { flex: 1; position: relative; }
+canvas { width: 100%; height: 100%; }
+#sidebar {
+    width: 280px;
+    background: #0d0d14;
+    border-left: 1px solid #1a1a2a;
+    padding: 10px;
+    overflow-y: auto;
+    font-size: 11px;
+}
+.node-card {
+    background: #111118;
+    border: 1px solid #222;
+    border-radius: 4px;
+    padding: 6px 8px;
+    margin-bottom: 4px;
+}
+.node-card .nid { font-weight: bold; }
+.node-card .sat-bar {
+    height: 6px;
+    background: #1a1a2a;
+    border-radius: 3px;
+    margin: 3px 0;
+    overflow: hidden;
+}
+.node-card .sat-fill { height: 100%; border-radius: 3px; transition: width 0.2s; }
+.zone-nom { color: #2ecc71; }
+.zone-ylw { color: #f1c40f; }
+.zone-org { color: #e67e22; }
+.zone-red { color: #e74c3c; }
+#stats {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #222;
+}
+#log {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #222;
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 10px;
+    color: #666;
+}
+#log div { padding: 1px 0; }
+</style>
+</head>
+<body>
+
+<div id="header">
+    <div>
+        <h1>Ghost Meadow — Interactive Swarm Simulation</h1>
+        <div class="subtitle">Probabilistic memory substrate for embedded swarm systems</div>
+    </div>
+    <div style="font-size:11px;color:#555;">Step: <span id="step-counter">0</span></div>
+</div>
+
+<div id="controls">
+    <div class="ctrl-group">
+        <label>Nodes:</label>
+        <input type="range" id="num-nodes" min="3" max="32" value="8">
+        <span id="num-nodes-val">8</span>
+    </div>
+    <div class="ctrl-group">
+        <label>Topology:</label>
+        <select id="topology">
+            <option value="range">Range (±3)</option>
+            <option value="chain">Chain</option>
+            <option value="ring">Ring</option>
+            <option value="mesh">Full Mesh</option>
+        </select>
+    </div>
+    <div class="ctrl-group">
+        <label>Speed:</label>
+        <input type="range" id="speed" min="1" max="60" value="10">
+    </div>
+    <div class="ctrl-group">
+        <label>Autonomy:</label>
+        <input type="range" id="autonomy" min="0" max="100" value="50">
+        <span id="autonomy-val">0.50</span>
+    </div>
+    <button id="btn-play" class="active">▶ Play</button>
+    <button id="btn-step">Step</button>
+    <button id="btn-decay">Decay</button>
+    <button id="btn-reset">Reset</button>
+    <button id="btn-poison">Poison N0</button>
+</div>
+
+<div id="main">
+    <div id="canvas-wrap">
+        <canvas id="sim-canvas"></canvas>
+    </div>
+    <div id="sidebar">
+        <div id="node-cards"></div>
+        <div id="stats"></div>
+        <div id="log"></div>
+    </div>
+</div>
+
+<script>
+// =========================================================================
+// Ghost Meadow JS — faithful port of ghost_meadow.h core
+// =========================================================================
+
+const FNV_PRIME  = 16777619;
+const FNV_OFFSET = 2166136261;
+const MIX_CONST  = 0x45d9f3b;
+
+function mul32(a, b) {
+    // 32-bit multiply without overflow issues
+    const al = a & 0xFFFF, ah = (a >>> 16) & 0xFFFF;
+    const bl = b & 0xFFFF, bh = (b >>> 16) & 0xFFFF;
+    return ((al * bl) + (((ah * bl + al * bh) & 0xFFFF) << 16)) >>> 0;
+}
+
+function fnv1a_hash(missionKey, data, hashIdx) {
+    // Match C++ _hash exactly
+    const seedHi = (missionKey[1] ^ mul32(hashIdx, 0x7F4A7C15)) >>> 0;
+    const seed = seedHi >>> 0;  // simplified — use lower bits of XOR
+    // Full 64-bit XOR: mission_key ^ (hash_idx * 0x9e3779b97f4a7c15)
+    // For JS we approximate with 32-bit ops matching the C++ behavior
+    let h = (FNV_OFFSET ^ seed) >>> 0;
+    for (let i = 0; i < data.length; i++) {
+        h = (h ^ data[i]) >>> 0;
+        h = mul32(h, FNV_PRIME);
+    }
+    h = (h ^ (h >>> 16)) >>> 0;
+    h = mul32(h, MIX_CONST);
+    h = (h ^ (h >>> 16)) >>> 0;
+    return h;
+}
+
+class GhostMeadowJS {
+    constructor(nodeId, m = 4096, k = 2) {
+        this.nodeId = nodeId;
+        this.m = m;
+        this.k = k;
+        this.bytes = m >>> 3;
+        this.bits = new Uint8Array(this.bytes);
+        this.bitsSet = 0;
+        this.epoch = 0;
+        this.mergeSources = new Set();
+        this.totalMerges = 0;
+        this.mergeDeltaLast = 0;
+        this.ghostTriggerCount = 0;
+        this.zone = 0;
+        // Mission key as two 32-bit halves [lo, hi]
+        this.missionKey = [0xCAFEBABE, 0xDEADBEEF];
+    }
+
+    _hash(data, hashIdx) {
+        return fnv1a_hash(this.missionKey, data, hashIdx) % this.m;
+    }
+
+    seed(obs) {
+        for (let i = 0; i < this.k; i++) {
+            const pos = this._hash(obs, i);
+            const byteIdx = pos >>> 3;
+            const bitIdx = pos & 7;
+            if (!(this.bits[byteIdx] & (1 << bitIdx))) {
+                this.bits[byteIdx] |= (1 << bitIdx);
+                this.bitsSet++;
+            }
+        }
+    }
+
+    query(obs) {
+        for (let i = 0; i < this.k; i++) {
+            const pos = this._hash(obs, i);
+            if (!(this.bits[pos >>> 3] & (1 << (pos & 7)))) return false;
+        }
+        return true;
+    }
+
+    mergeRaw(otherBits, srcId) {
+        const len = Math.min(otherBits.length, this.bytes);
+        let delta = 0;
+        for (let i = 0; i < len; i++) {
+            const before = this.bits[i];
+            this.bits[i] |= otherBits[i];
+            let diff = this.bits[i] & ~before;
+            // popcount byte
+            diff = diff - ((diff >>> 1) & 0x55);
+            diff = (diff & 0x33) + ((diff >>> 2) & 0x33);
+            delta += (diff + (diff >>> 4)) & 0x0F;
+        }
+        this.bitsSet = this._countBits();
+        this.mergeDeltaLast = delta;
+        if (!this.mergeSources.has(srcId)) {
+            this.mergeSources.add(srcId);
+        }
+        this.totalMerges++;
+        return delta;
+    }
+
+    decay() {
+        this.bits.fill(0);
+        this.bitsSet = 0;
+        this.mergeSources.clear();
+        this.mergeDeltaLast = 0;
+        this.epoch++;
+    }
+
+    saturation() { return this.bitsSet / this.m; }
+    saturationPct() { return this.saturation() * 100; }
+    mergeSourceCount() { return this.mergeSources.size; }
+
+    _countBits() {
+        let c = 0;
+        for (let i = 0; i < this.bytes; i++) {
+            let b = this.bits[i];
+            b = b - ((b >>> 1) & 0x55);
+            b = (b & 0x33) + ((b >>> 2) & 0x33);
+            c += (b + (b >>> 4)) & 0x0F;
+        }
+        return c;
+    }
+}
+
+// =========================================================================
+// Policy engine (JS port of ghost_policy.h)
+// =========================================================================
+class GhostPolicyJS {
+    constructor(autonomy = 0.5, quorumK = 3) {
+        this.autonomy = Math.max(0, Math.min(1, autonomy));
+        this.quorumK = quorumK;
+        this.satYellow = 40;
+        this.satOrange = 65;
+        this.satRed = 85;
+        this.ghostTriggerSat = 50;
+        this.ghostArmed = true;
+    }
+
+    evaluate(meadow) {
+        const sat = meadow.saturationPct();
+        const sources = meadow.mergeSourceCount();
+        const shift = this.autonomy * 15;
+        const effYellow = Math.min(this.satYellow + shift, 100);
+        const effOrange = Math.min(this.satOrange + shift, 100);
+        const effRed = Math.min(this.satRed + shift, 100);
+
+        let zone = 0;
+        if (sat >= effRed) zone = 3;
+        else if (sat >= effOrange) zone = 2;
+        else if (sat >= effYellow) zone = 1;
+
+        const quorumMet = sources >= this.quorumK;
+        let redBlocked = false;
+        if (zone === 3 && !quorumMet) { zone = 2; redBlocked = true; }
+
+        const oldZone = meadow.zone;
+        meadow.zone = zone;
+
+        let ghostTriggered = false;
+        const ghostThresh = Math.min(this.ghostTriggerSat + this.autonomy * 10, 100);
+        if (this.ghostArmed && sat >= ghostThresh) {
+            meadow.ghostTriggerCount++;
+            ghostTriggered = true;
+            this.ghostArmed = false;
+        }
+
+        return { zone, quorumMet, redBlocked, ghostTriggered };
+    }
+
+    rearm() { this.ghostArmed = true; }
+}
+
+// =========================================================================
+// Simulation state
+// =========================================================================
+let NUM_NODES = 8;
+let nodes = [];
+let policy;
+let step = 0;
+let running = true;
+let poisonMode = false;
+let mergeEdges = [];  // [(src, dst)] for current step
+
+// xorshift64 state
+let rngHi = 0x12345678, rngLo = 0xABCDEF01;
+function xorshift32() {
+    let x = rngLo;
+    x ^= (x << 13) >>> 0;
+    x ^= (x >>> 17);
+    x ^= (x << 5) >>> 0;
+    rngLo = x;
+    return x >>> 0;
+}
+function rngF() { return (xorshift32() % 10000) / 10000; }
+
+function initSim() {
+    NUM_NODES = parseInt(document.getElementById('num-nodes').value);
+    nodes = [];
+    for (let i = 0; i < NUM_NODES; i++) {
+        nodes.push(new GhostMeadowJS(i, 4096, 2));
+    }
+    const autonomy = parseInt(document.getElementById('autonomy').value) / 100;
+    policy = new GhostPolicyJS(autonomy, 3);
+    step = 0;
+    mergeEdges = [];
+    poisonMode = false;
+    document.getElementById('btn-poison').textContent = 'Poison N0';
+    rngHi = 0x12345678; rngLo = 0xABCDEF01;
+    clearLog();
+    addLog('Simulation reset');
+}
+
+function getTopology() { return document.getElementById('topology').value; }
+
+function inRange(i, j) {
+    const topo = getTopology();
+    const d = Math.abs(i - j);
+    if (topo === 'mesh') return true;
+    if (topo === 'chain') return d <= 1;
+    if (topo === 'ring') return d <= 1 || d >= NUM_NODES - 1;
+    return d <= 3; // range
+}
+
+function simStep() {
+    step++;
+    mergeEdges = [];
+
+    // Seed phase
+    for (let i = 0; i < NUM_NODES; i++) {
+        let rate = (poisonMode && i === 0) ? 30 : (rngF() < 0.6 ? 1 + (xorshift32() % 3) : 0);
+        for (let s = 0; s < rate; s++) {
+            const v = xorshift32();
+            nodes[i].seed([v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF, (v >> 24) & 0xFF]);
+        }
+    }
+
+    // Merge phase
+    for (let i = 0; i < NUM_NODES; i++) {
+        for (let j = 0; j < NUM_NODES; j++) {
+            if (i === j) continue;
+            if (inRange(i, j) && rngF() < 0.4) {
+                nodes[i].mergeRaw(nodes[j].bits, nodes[j].nodeId);
+                mergeEdges.push([j, i]);
+            }
+        }
+    }
+
+    // Policy phase
+    const autonomy = parseInt(document.getElementById('autonomy').value) / 100;
+    policy.autonomy = autonomy;
+    for (let i = 0; i < NUM_NODES; i++) {
+        const r = policy.evaluate(nodes[i]);
+        if (r.ghostTriggered) {
+            addLog(`Step ${step}: Ghost trigger fired on N${i}`);
+        }
+    }
+
+    document.getElementById('step-counter').textContent = step;
+}
+
+// =========================================================================
+// Canvas rendering
+// =========================================================================
+const canvas = document.getElementById('sim-canvas');
+const ctx = canvas.getContext('2d');
+
+const ZONE_COLORS = ['#2ecc71', '#f1c40f', '#e67e22', '#e74c3c'];
+const ZONE_NAMES = ['NOM', 'YLW', 'ORG', 'RED'];
+
+function resize() {
+    const wrap = document.getElementById('canvas-wrap');
+    canvas.width = wrap.clientWidth * window.devicePixelRatio;
+    canvas.height = wrap.clientHeight * window.devicePixelRatio;
+    canvas.style.width = wrap.clientWidth + 'px';
+    canvas.style.height = wrap.clientHeight + 'px';
+    ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+}
+
+function nodePositions() {
+    const w = canvas.width / window.devicePixelRatio;
+    const h = canvas.height / window.devicePixelRatio;
+    const cx = w / 2, cy = h / 2;
+    const r = Math.min(cx, cy) * 0.7;
+    const pos = [];
+    for (let i = 0; i < NUM_NODES; i++) {
+        const angle = (2 * Math.PI * i / NUM_NODES) - Math.PI / 2;
+        pos.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
+    }
+    return pos;
+}
+
+function render() {
+    const w = canvas.width / window.devicePixelRatio;
+    const h = canvas.height / window.devicePixelRatio;
+    ctx.clearRect(0, 0, w, h);
+
+    const pos = nodePositions();
+
+    // Draw topology edges (dim)
+    ctx.strokeStyle = '#1a1a2a';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < NUM_NODES; i++) {
+        for (let j = i + 1; j < NUM_NODES; j++) {
+            if (inRange(i, j)) {
+                ctx.beginPath();
+                ctx.moveTo(pos[i].x, pos[i].y);
+                ctx.lineTo(pos[j].x, pos[j].y);
+                ctx.stroke();
+            }
+        }
+    }
+
+    // Draw merge edges (active this step)
+    for (const [src, dst] of mergeEdges) {
+        const dx = pos[dst].x - pos[src].x;
+        const dy = pos[dst].y - pos[src].y;
+        ctx.strokeStyle = 'rgba(52, 152, 219, 0.3)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(pos[src].x, pos[src].y);
+        ctx.lineTo(pos[dst].x, pos[dst].y);
+        ctx.stroke();
+
+        // Arrowhead
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len > 0) {
+            const nx = dx / len, ny = dy / len;
+            const ax = pos[dst].x - nx * 20, ay = pos[dst].y - ny * 20;
+            ctx.fillStyle = 'rgba(52, 152, 219, 0.4)';
+            ctx.beginPath();
+            ctx.moveTo(pos[dst].x - nx * 16, pos[dst].y - ny * 16);
+            ctx.lineTo(ax - ny * 4, ay + nx * 4);
+            ctx.lineTo(ax + ny * 4, ay - nx * 4);
+            ctx.fill();
+        }
+    }
+
+    // Draw nodes
+    for (let i = 0; i < NUM_NODES; i++) {
+        const n = nodes[i];
+        const sat = n.saturationPct();
+        const zone = n.zone;
+        const color = ZONE_COLORS[zone];
+        const radius = 14 + sat * 0.15;
+        const p = pos[i];
+
+        // Glow
+        const grad = ctx.createRadialGradient(p.x, p.y, radius * 0.5, p.x, p.y, radius * 2);
+        grad.addColorStop(0, color + '30');
+        grad.addColorStop(1, 'transparent');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius * 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Node circle
+        ctx.fillStyle = color;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Label
+        ctx.fillStyle = '#000';
+        ctx.font = 'bold 10px Courier New';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(i.toString(), p.x, p.y);
+
+        // Saturation below
+        ctx.fillStyle = '#888';
+        ctx.font = '9px Courier New';
+        ctx.fillText(sat.toFixed(1) + '%', p.x, p.y + radius + 12);
+    }
+
+    // Variance display
+    const sats = nodes.map(n => n.saturationPct());
+    const mean = sats.reduce((a, b) => a + b, 0) / NUM_NODES;
+    const variance = sats.reduce((a, s) => a + (s - mean) ** 2, 0) / NUM_NODES;
+
+    ctx.fillStyle = '#555';
+    ctx.font = '11px Courier New';
+    ctx.textAlign = 'left';
+    ctx.fillText(`variance: ${variance.toFixed(6)}  step: ${step}  epoch: ${nodes[0].epoch}`, 10, h - 10);
+
+    // Update sidebar
+    updateSidebar(sats, mean, variance);
+}
+
+function updateSidebar(sats, mean, variance) {
+    const cardsDiv = document.getElementById('node-cards');
+    let html = '';
+    for (let i = 0; i < NUM_NODES; i++) {
+        const n = nodes[i];
+        const sat = sats[i];
+        const zone = n.zone;
+        const zoneClass = ['zone-nom', 'zone-ylw', 'zone-org', 'zone-red'][zone];
+        const fillColor = ZONE_COLORS[zone];
+        html += `<div class="node-card">
+            <span class="nid ${zoneClass}">N${i}</span>
+            <span style="float:right;color:#666">${ZONE_NAMES[zone]}</span>
+            <div class="sat-bar"><div class="sat-fill" style="width:${sat}%;background:${fillColor}"></div></div>
+            <span style="color:#888">${sat.toFixed(2)}%</span>
+            <span style="float:right;color:#555">m:${n.totalMerges} s:${n.mergeSourceCount()}</span>
+        </div>`;
+    }
+    cardsDiv.innerHTML = html;
+
+    const statsDiv = document.getElementById('stats');
+    const satMin = Math.min(...sats).toFixed(2);
+    const satMax = Math.max(...sats).toFixed(2);
+    const totalMerges = nodes.reduce((a, n) => a + n.totalMerges, 0);
+    statsDiv.innerHTML = `
+        <div style="color:#7ec8e3">Swarm Stats</div>
+        <div>Variance: ${variance.toFixed(6)}</div>
+        <div>Sat range: ${satMin}% – ${satMax}%</div>
+        <div>Total merges: ${totalMerges}</div>
+        <div>Converged: ${variance < 0.01 ? '<span style="color:#2ecc71">yes</span>' : '<span style="color:#e74c3c">no</span>'}</div>
+        <div>Merge edges/step: ${mergeEdges.length}</div>
+    `;
+}
+
+// Log
+function addLog(msg) {
+    const log = document.getElementById('log');
+    const div = document.createElement('div');
+    div.textContent = msg;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+    // Trim
+    while (log.children.length > 100) log.removeChild(log.firstChild);
+}
+function clearLog() { document.getElementById('log').innerHTML = ''; }
+
+// =========================================================================
+// Controls
+// =========================================================================
+document.getElementById('num-nodes').addEventListener('input', e => {
+    document.getElementById('num-nodes-val').textContent = e.target.value;
+});
+document.getElementById('autonomy').addEventListener('input', e => {
+    document.getElementById('autonomy-val').textContent = (e.target.value / 100).toFixed(2);
+});
+document.getElementById('btn-play').addEventListener('click', () => {
+    running = !running;
+    const btn = document.getElementById('btn-play');
+    btn.textContent = running ? '⏸ Pause' : '▶ Play';
+    btn.classList.toggle('active', running);
+});
+document.getElementById('btn-step').addEventListener('click', () => {
+    running = false;
+    document.getElementById('btn-play').textContent = '▶ Play';
+    document.getElementById('btn-play').classList.remove('active');
+    simStep();
+    render();
+});
+document.getElementById('btn-decay').addEventListener('click', () => {
+    for (const n of nodes) n.decay();
+    policy.rearm();
+    addLog(`Step ${step}: Epoch decay — all nodes cleared`);
+    render();
+});
+document.getElementById('btn-reset').addEventListener('click', () => {
+    initSim();
+    resize();
+    render();
+});
+document.getElementById('btn-poison').addEventListener('click', () => {
+    poisonMode = !poisonMode;
+    document.getElementById('btn-poison').textContent = poisonMode ? '☠ Poisoning!' : 'Poison N0';
+    addLog(poisonMode ? 'Poison mode ON — N0 seeding 30x/step' : 'Poison mode OFF');
+});
+document.getElementById('num-nodes').addEventListener('change', () => {
+    initSim();
+    resize();
+    render();
+});
+document.getElementById('topology').addEventListener('change', () => {
+    addLog(`Topology changed to: ${getTopology()}`);
+    render();
+});
+
+// =========================================================================
+// Main loop
+// =========================================================================
+let lastFrame = 0;
+function loop(ts) {
+    const speed = parseInt(document.getElementById('speed').value);
+    const interval = 1000 / speed;
+
+    if (running && ts - lastFrame >= interval) {
+        simStep();
+        lastFrame = ts;
+    }
+
+    render();
+    requestAnimationFrame(loop);
+}
+
+window.addEventListener('resize', () => { resize(); render(); });
+
+// Init
+initSim();
+resize();
+render();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
