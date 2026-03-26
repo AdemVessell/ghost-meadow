@@ -394,6 +394,90 @@ ALL_SCENARIOS = [
 
 ALL_APPROACHES = ["ghost_meadow", "local_only", "exact_gossip", "counter_agg"]
 
+# Additional trust-mode scenarios for poisoning ablation
+TRUST_APPROACHES = ["gm_trust_equal", "gm_trust_tiered", "gm_trust_untrusted"]
+
+
+def _trust_approach_to_config(approach):
+    """Map trust approach names to (node_class, trust_mode, policy_variant)."""
+    return {
+        "gm_trust_equal": (SecurityNode, "all_equal", "composite"),
+        "gm_trust_tiered": (SecurityNode, "tiered", "composite"),
+        "gm_trust_untrusted": (SecurityNode, "single_untrusted", "trust_weighted"),
+    }.get(approach, (SecurityNode, "all_equal", "composite"))
+
+
+def run_trust_ablation(profile_config, scenario_fn, scenario_name):
+    """Run a single scenario under different trust modes.
+    Returns list of summary dicts for trust comparison."""
+    summaries = []
+    for trust_approach in TRUST_APPROACHES:
+        node_class, trust_mode, policy_variant = _trust_approach_to_config(
+            trust_approach)
+        config = {
+            "num_nodes": profile_config.get("num_nodes", 8),
+            "topology": profile_config.get("topology", "regional_mesh"),
+            "contact_prob": profile_config.get("contact_prob", 0.4),
+            "bloom_m": profile_config.get("bloom_m", 4096),
+            "bloom_k": profile_config.get("bloom_k", 2),
+            "steps": 500,
+            "epoch_length": 200,
+            "seed": 20260328,
+            "malicious_node_ids": [0],
+            "trust_mode": trust_mode,
+            "policy_variant": policy_variant,
+            "attack_type": "poison_flood",
+            "attack_params": {"poison_token_rate": 50, "background_token_rate": 3},
+        }
+        print(f"  Running {scenario_name} / {trust_approach}...", end=" ",
+              flush=True)
+        collector = _run_generic_scenario(
+            scenario_name, config, node_class, trust_approach)
+        summary = collector.summary_dict()
+        summaries.append(summary)
+        sat = summary["max_saturation_pct"]
+        fe = summary["false_escalation_count"]
+        print(f"maxSat={sat:.1f}% falseEsc={fe}")
+    return summaries
+
+
+def run_policy_ablation(profile_config):
+    """Run coordinated attack under each policy variant.
+    Returns list of summary dicts for policy comparison."""
+    summaries = []
+    variants = ["basic", "quorum_gated", "delta_sensitive", "anti_stale",
+                "composite"]
+    for variant in variants:
+        config = {
+            "num_nodes": profile_config.get("num_nodes", 8),
+            "topology": profile_config.get("topology", "regional_mesh"),
+            "contact_prob": profile_config.get("contact_prob", 0.4),
+            "bloom_m": profile_config.get("bloom_m", 4096),
+            "bloom_k": profile_config.get("bloom_k", 2),
+            "steps": 500,
+            "epoch_length": 200,
+            "seed": 20260327,
+            "policy_variant": variant,
+            "attack_type": "distributed_campaign",
+            "attack_params": {
+                "campaign_start_step": 100,
+                "campaign_token_rate": 8,
+                "campaign_affected_fraction": 0.6,
+                "background_token_rate": 3,
+            },
+        }
+        approach_name = f"gm_policy_{variant}"
+        print(f"  Running policy_ablation / {variant}...", end=" ", flush=True)
+        collector = _run_generic_scenario(
+            "policy_ablation_B", config, SecurityNode, approach_name)
+        summary = collector.summary_dict()
+        summaries.append(summary)
+        sat = summary["max_saturation_pct"]
+        t1 = summary.get("time_to_first_local_suspicion")
+        t1_str = str(t1) if t1 is not None else "N/A"
+        print(f"maxSat={sat:.1f}% firstLocal={t1_str}")
+    return summaries
+
 
 def run_all(profile_config, approaches=None, scenarios=None):
     """Run all requested scenarios across all requested approaches.
