@@ -1,0 +1,59 @@
+COOPERATIVE ENCLAVE BAKEOFF SUMMARY
+Runtime: 1305.0s
+Seeds: 20, Topologies: 3
+Nodes: 32, m=4096, k=2
+
+
+=== overlap_identical_event ===
+  gm_cap_aware: elev_rate=0.000 bw=387309
+  ewma_local: elev_rate=0.000 bw=0
+  scalar_max: elev_rate=0.000 bw=2979
+  scalar_mean: elev_rate=1.000 bw=5959
+
+=== overlap_moving_cluster ===
+  gm_cap_aware: elev_rate=0.000 bw=516447
+  ewma_local: elev_rate=0.000 bw=0
+  scalar_max: elev_rate=0.000 bw=3973
+  scalar_mean: elev_rate=1.000 bw=7945
+
+=== overlap_rebroadcast_storm ===
+  gm_cap_aware: elev_rate=0.000 bw=387309
+  ewma_local: elev_rate=0.000 bw=0
+  scalar_max: elev_rate=0.000 bw=2979
+  scalar_mean: elev_rate=1.000 bw=5959
+
+=== breadth_weak_distributed ===
+  gm_cap_aware: elev_rate=0.104 bw=516548
+  ewma_local: elev_rate=0.000 bw=0
+  scalar_max: elev_rate=0.000 bw=3973
+  scalar_mean: elev_rate=1.000 bw=7947
+
+=== breadth_gradient ===
+  gm_cap_aware: elev_rate=1.000 bw=515749
+  ewma_local: elev_rate=0.406 bw=0
+  scalar_max: elev_rate=1.000 bw=3967
+  scalar_mean: elev_rate=1.000 bw=7935
+
+=== breadth_vs_benign_bustle ===
+  gm_cap_aware: elev_rate=1.000 bw=516354
+  ewma_local: elev_rate=1.000 bw=0
+  scalar_max: elev_rate=1.000 bw=3972
+  scalar_mean: elev_rate=1.000 bw=7944
+
+=== shift_change_bustle ===
+  gm_cap_aware: elev_rate=1.000 bw=515657
+  ewma_local: elev_rate=1.000 bw=0
+  scalar_max: elev_rate=1.000 bw=3967
+  scalar_mean: elev_rate=1.000 bw=7933
+
+=== partition_heal ===
+  gm_cap_aware: elev_rate=1.000 bw=513695
+  ewma_local: elev_rate=0.000 bw=0
+  scalar_max: elev_rate=0.000 bw=3952
+  scalar_mean: elev_rate=1.000 bw=7903
+
+=== corridor_bottleneck ===
+  gm_cap_aware: elev_rate=0.756 bw=516548
+  ewma_local: elev_rate=0.000 bw=0
+  scalar_max: elev_rate=0.000 bw=3973
+  scalar_mean: elev_rate=1.000 bw=7947
