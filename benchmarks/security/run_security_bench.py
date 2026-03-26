@@ -22,7 +22,8 @@ import argparse
 # Add benchmark dir to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from scenarios import run_all, ALL_SCENARIOS, ALL_APPROACHES
+from scenarios import (run_all, run_trust_ablation, run_policy_ablation,
+                       ALL_SCENARIOS, ALL_APPROACHES, scenario_C_single_poison)
 from metrics import format_summary_table, write_csv, write_jsonl
 
 
@@ -62,9 +63,10 @@ def main():
 
     scenarios = ALL_SCENARIOS
     if args.quick:
-        # Quick mode: only benign, coordinated attack, single poison
         quick_names = {"A_benign", "B_coordinated", "C_single_poison"}
         scenarios = [(n, f) for n, f in ALL_SCENARIOS if n in quick_names]
+
+    run_ablation = not args.quick  # ablation only in full mode
 
     all_summaries = []
 
@@ -96,10 +98,34 @@ def main():
         }
 
         summaries = run_all(profile_config, ALL_APPROACHES, scenarios)
-        # Tag with profile name
         for s in summaries:
             s["profile"] = profile_name
         all_summaries.extend(summaries)
+
+        # Trust ablation on poison scenario (per profile)
+        if run_ablation:
+            print(f"\n  --- Trust Mode Ablation (poison scenario) ---")
+            trust_summaries = run_trust_ablation(
+                profile_config, scenario_C_single_poison, "C_trust_ablation")
+            for s in trust_summaries:
+                s["profile"] = profile_name
+            all_summaries.extend(trust_summaries)
+
+    # Policy variant ablation (once, on first profile)
+    if run_ablation and profiles_to_run:
+        first_profile = config["deployment_profiles"][profiles_to_run[0]]
+        profile_config = {
+            "num_nodes": first_profile["num_nodes"],
+            "topology": first_profile["topology"],
+            "contact_prob": first_profile["contact_prob"],
+            "bloom_m": first_profile["bloom_m"],
+            "bloom_k": first_profile["bloom_k"],
+        }
+        print(f"\n  --- Policy Variant Ablation (coordinated attack) ---")
+        policy_summaries = run_policy_ablation(profile_config)
+        for s in policy_summaries:
+            s["profile"] = profiles_to_run[0]
+        all_summaries.extend(policy_summaries)
 
     elapsed = time.time() - start_time
 

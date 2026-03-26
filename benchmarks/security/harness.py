@@ -269,9 +269,15 @@ class LocalOnlyNode:
 # ---- Baseline: Exact Lightweight Gossip ----
 class ExactGossipNode:
     """Baseline 2: nodes share exact suspicion token sets.
-    Capped at MAX_SHARED tokens to keep it lightweight."""
 
-    MAX_SHARED = 200  # cap to keep bandwidth bounded
+    Strengthened baseline assumptions:
+    - Cap raised to 500 tokens (realistic for a lightweight gossip system)
+    - Quorum-gated policy (same as GM composite for fair comparison)
+    - Bandwidth accounts for 4-byte token encoding + 2-byte per-merge overhead
+    - Tracks merge sources for quorum like GM does
+    """
+
+    MAX_SHARED = 500  # realistic cap for lightweight gossip
 
     def __init__(self, node_id, policy_variant="quorum_gated", quorum_k=3):
         self.node_id = node_id
@@ -286,6 +292,7 @@ class ExactGossipNode:
         self.bytes_received = 0
         self.zone_history = []
         self.saturation_history = []
+        self.merge_delta_history = []
         self.first_elevated_step = None
         self.first_coordinated_step = None
 
@@ -294,27 +301,36 @@ class ExactGossipNode:
         self.tokens_seeded += 1
 
     def merge_from(self, other):
-        """Share exact token sets, capped."""
-        other_tokens = other.local_tokens | other.shared_tokens
-        to_share = set(list(other_tokens)[:self.MAX_SHARED])
+        """Share exact token sets, capped at MAX_SHARED most recent."""
+        other_all = other.local_tokens | other.shared_tokens
+        # Share up to MAX_SHARED tokens (deterministic: sorted for reproducibility)
+        to_share = set(sorted(other_all)[:self.MAX_SHARED])
         new_tokens = to_share - self.shared_tokens - self.local_tokens
         self.shared_tokens |= to_share
+        # Cap total shared to prevent unbounded growth
+        if len(self.shared_tokens) > self.MAX_SHARED * 2:
+            self.shared_tokens = set(
+                sorted(self.shared_tokens)[:self.MAX_SHARED * 2])
         self.merge_sources.add(other.node_id)
         self.merges_performed += 1
-        # Bandwidth: 4 bytes per token shared
-        bytes_transferred = len(to_share) * 4
+        self.merge_delta_history.append(len(new_tokens))
+        # Bandwidth: 4 bytes per token + 2 bytes merge overhead
+        bytes_transferred = len(to_share) * 4 + 2
         self.bytes_received += bytes_transferred
         other.bytes_sent += bytes_transferred
         return len(new_tokens)
 
     def evaluate_policy(self, step):
         all_tokens = self.local_tokens | self.shared_tokens
-        capacity = 500
+        # Use token count relative to a capacity derived from typical
+        # Bloom filter capacity for fair comparison
+        capacity = max(200, self.MAX_SHARED)
         pseudo_sat = min(95.0, (len(all_tokens) / capacity) * 100.0)
         state = {
             "saturation_pct": pseudo_sat,
             "merge_source_count": len(self.merge_sources),
-            "merge_delta_last": 0,
+            "merge_delta_last": (self.merge_delta_history[-1]
+                                 if self.merge_delta_history else 0),
         }
         result = self.policy.evaluate(state)
         self.zone_history.append(result["zone"])
@@ -330,6 +346,7 @@ class ExactGossipNode:
         self.local_tokens.clear()
         self.shared_tokens.clear()
         self.merge_sources.clear()
+        self.merge_delta_history.clear()
         self.policy.reset_epoch()
 
     def can_query_token(self, token_bytes):
@@ -338,14 +355,21 @@ class ExactGossipNode:
 
 # ---- Baseline: Counter/Rate Aggregation ----
 class CounterAggNode:
-    """Baseline 3: nodes share per-category counters periodically."""
+    """Baseline 3: nodes share per-category counters periodically.
 
-    def __init__(self, node_id, policy_variant="basic", quorum_k=1):
+    Strengthened baseline assumptions:
+    - Quorum-gated policy (same guard as GM for fair comparison)
+    - Per-category + per-subcategory counters (finer granularity)
+    - Tracks both local and max-peer counts for each category
+    - Bandwidth: 3 bytes per (category, count) pair
+    """
+
+    def __init__(self, node_id, policy_variant="quorum_gated", quorum_k=3):
         self.node_id = node_id
         self.policy = SecurityPolicy(variant=policy_variant, quorum_k=quorum_k)
         self.is_malicious = False
-        self.local_counters = {}  # category -> count
-        self.peer_counters = {}  # category -> aggregated count from peers
+        self.local_counters = {}  # (cat, sub) -> count
+        self.peer_counters = {}  # (cat, sub) -> max count from peers
         self.merge_sources = set()
         self.local_tokens = set()
         self.tokens_seeded = 0
@@ -354,27 +378,38 @@ class CounterAggNode:
         self.bytes_received = 0
         self.zone_history = []
         self.saturation_history = []
+        self.merge_delta_history = []
         self.first_elevated_step = None
         self.first_coordinated_step = None
 
     def seed_token(self, token_bytes):
         self.local_tokens.add(token_bytes)
-        cat = token_bytes[0] if token_bytes else 0
-        self.local_counters[cat] = self.local_counters.get(cat, 0) + 1
+        if len(token_bytes) >= 2:
+            key = (token_bytes[0], token_bytes[1])
+        else:
+            key = (token_bytes[0] if token_bytes else 0, 0)
+        self.local_counters[key] = self.local_counters.get(key, 0) + 1
         self.tokens_seeded += 1
 
     def merge_from(self, other):
-        """Share per-category counters."""
-        for cat, count in other.local_counters.items():
-            old = self.peer_counters.get(cat, 0)
-            self.peer_counters[cat] = max(old, count)
-        for cat, count in other.peer_counters.items():
-            old = self.peer_counters.get(cat, 0)
-            self.peer_counters[cat] = max(old, count)
+        """Share per-(category, subcategory) counters."""
+        delta = 0
+        for key, count in other.local_counters.items():
+            old = self.peer_counters.get(key, 0)
+            if count > old:
+                delta += count - old
+                self.peer_counters[key] = count
+        for key, count in other.peer_counters.items():
+            old = self.peer_counters.get(key, 0)
+            if count > old:
+                delta += count - old
+                self.peer_counters[key] = count
         self.merge_sources.add(other.node_id)
         self.merges_performed += 1
-        # Bandwidth: 2 bytes per category entry
-        bytes_transferred = len(other.local_counters) * 2 + len(other.peer_counters) * 2
+        self.merge_delta_history.append(delta)
+        # Bandwidth: 3 bytes per entry (1 cat + 1 sub + 1 count byte)
+        n_entries = len(other.local_counters) + len(other.peer_counters)
+        bytes_transferred = n_entries * 3 + 2  # +2 overhead
         self.bytes_received += bytes_transferred
         other.bytes_sent += bytes_transferred
 
@@ -382,12 +417,15 @@ class CounterAggNode:
         total_local = sum(self.local_counters.values())
         total_peer = sum(self.peer_counters.values())
         total = total_local + total_peer
-        capacity = 500
+        # Scale to comparable saturation: assume ~200 unique (cat,sub) pairs
+        # at full activity is analogous to high saturation
+        capacity = max(200, total_local + 1)  # avoid divide-by-zero
         pseudo_sat = min(95.0, (total / capacity) * 100.0)
         state = {
             "saturation_pct": pseudo_sat,
             "merge_source_count": len(self.merge_sources),
-            "merge_delta_last": 0,
+            "merge_delta_last": (self.merge_delta_history[-1]
+                                 if self.merge_delta_history else 0),
         }
         result = self.policy.evaluate(state)
         self.zone_history.append(result["zone"])
@@ -404,6 +442,7 @@ class CounterAggNode:
         self.peer_counters.clear()
         self.merge_sources.clear()
         self.local_tokens.clear()
+        self.merge_delta_history.clear()
         self.policy.reset_epoch()
 
     def can_query_token(self, token_bytes):

@@ -52,6 +52,22 @@
       "bloom_m": 512,
       "bloom_k": 2,
       "description": "Low-power / small-filter IoT variant"
+    },
+    "standard": {
+      "num_nodes": 12,
+      "topology": "regional_mesh",
+      "contact_prob": 0.4,
+      "bloom_m": 32768,
+      "bloom_k": 7,
+      "description": "Standard ESP32 nodes — predicted good regime for security telemetry"
+    },
+    "full": {
+      "num_nodes": 12,
+      "topology": "regional_mesh",
+      "contact_prob": 0.4,
+      "bloom_m": 192000,
+      "bloom_k": 13,
+      "description": "Full desktop/simulation nodes — spec-default sizing"
     }
   },
   "scenarios": {

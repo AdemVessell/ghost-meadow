@@ -77,6 +77,13 @@ class MetricsCollector:
             if mean_sat > 80.0:
                 self.steps_in_harmful_saturation += 1
 
+            # Stale pressure: saturation high but no change across 5+ steps
+            if len(self.saturation_timeseries) >= 5:
+                recent = [s[1] for s in self.saturation_timeseries[-5:]]
+                delta_range = max(recent) - min(recent)
+                if mean_sat > 30.0 and delta_range < 1.0:
+                    self.stale_pressure_events += 1
+
         self.zone_timeseries.append((step, dict(zones)))
 
     def finalize(self, nodes, had_real_attack=False,
@@ -116,6 +123,27 @@ class MetricsCollector:
                     max_zone = max(node.zone_history)
                     if max_zone >= ZONE_COORDINATED:
                         self.false_escalation_count += 1
+
+        # Degradation under malicious: compare average saturation of honest
+        # nodes near malicious vs far from malicious
+        malicious_nodes = [n for n in nodes if n.is_malicious]
+        if malicious_nodes and honest_nodes:
+            mal_ids = {n.node_id for n in malicious_nodes}
+            near_mal_sats = []
+            far_mal_sats = []
+            for node in honest_nodes:
+                if not node.saturation_history:
+                    continue
+                avg_sat = sum(node.saturation_history) / len(node.saturation_history)
+                # "Near" = merged from a malicious node
+                if hasattr(node, 'merge_delta_history') and node.merge_delta_history:
+                    near_mal_sats.append(avg_sat)
+                else:
+                    far_mal_sats.append(avg_sat)
+            if near_mal_sats and far_mal_sats:
+                self.degradation_under_malicious = (
+                    sum(near_mal_sats) / len(near_mal_sats) -
+                    sum(far_mal_sats) / len(far_mal_sats))
 
         # Per-node summary
         for node in honest_nodes:
@@ -187,6 +215,9 @@ class MetricsCollector:
             d["final_saturation_variance"] = final_var
         else:
             d["final_saturation_variance"] = 0.0
+
+        # Robustness
+        d["degradation_under_malicious"] = self.degradation_under_malicious
 
         return d
 
