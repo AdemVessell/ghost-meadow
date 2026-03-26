@@ -1,0 +1,132 @@
+GHOST MEADOW SECURITY EVALUATION BENCHMARK RESULTS
+Generated: 2026-03-26 05:37:31
+Runtime: 20.4s
+Profiles: ['edge_pop']
+Scenarios: 9
+Approaches: 4
+
+
+========================================================================
+SCENARIO: A_benign_baseline
+========================================================================
+  Approach              1st Local  Med Local  1st Coord    Fleet  FalseEsc  Hits  Miss    Bytes/N  MaxSat%  HarmSteps
+  ---------------------------------------------------------------------------------------------------------------------
+  ghost_meadow                 27         29        141       29        12     0     0     726960    73.2%          0
+  local_only                   64         70        177       70        12     0     0          0    70.3%          0
+  exact_gossip                  7          8         18        8        12     0     0    1074775    95.0%        419
+  counter_agg                  26         27         72       27        12     0     0      44032    95.0%        226
+
+========================================================================
+SCENARIO: B_coordinated_attack
+========================================================================
+  Approach              1st Local  Med Local  1st Coord    Fleet  FalseEsc  Hits  Miss    Bytes/N  MaxSat%  HarmSteps
+  ---------------------------------------------------------------------------------------------------------------------
+  ghost_meadow                 29         30        143       30         0    12     0     722887    74.3%          0
+  local_only                   61         68        166       68         0    12     0          0    72.3%          0
+  exact_gossip                  8          9         19        9         0    12     0    1070053    95.0%        419
+  counter_agg                  26         27         72       27         0    12     0      43834    95.0%        361
+
+========================================================================
+SCENARIO: C_single_poison
+========================================================================
+  Approach              1st Local  Med Local  1st Coord    Fleet  FalseEsc  Hits  Miss    Bytes/N  MaxSat%  HarmSteps
+  ---------------------------------------------------------------------------------------------------------------------
+  ghost_meadow                 28         29        140       29        11     0     0     643890    73.2%          0
+  local_only                   60         69        171       69        11     0     0          0    71.5%          0
+  exact_gossip                  9          9         25        9        11     0     0     836440    95.0%        372
+  counter_agg                   3          4          7        4        11     0     0      34986    95.0%        475
+
+========================================================================
+SCENARIO: D_multi_collusion
+========================================================================
+  Approach              1st Local  Med Local  1st Coord    Fleet  FalseEsc  Hits  Miss    Bytes/N  MaxSat%  HarmSteps
+  ---------------------------------------------------------------------------------------------------------------------
+  ghost_meadow                 33         35        138       35         9     0     0     533173    75.1%          0
+  local_only                   67         71        173       71         9     0     0          0    70.8%          0
+  exact_gossip                 11         12         28       12         9     0     0     680160    95.0%        372
+  counter_agg                   4          4         11        4         9     0     0      28277    95.0%        461
+
+========================================================================
+SCENARIO: E_namespace_flood
+========================================================================
+  Approach              1st Local  Med Local  1st Coord    Fleet  FalseEsc  Hits  Miss    Bytes/N  MaxSat%  HarmSteps
+  ---------------------------------------------------------------------------------------------------------------------
+  ghost_meadow                  2          5          9        5        11     0     0     652557   100.0%        453
+  local_only                   64         68        173       68        11     0     0          0    71.4%          0
+  exact_gossip                  1          2          3        2        11     0     0     917769    95.0%        468
+  counter_agg                   1          2          3        2        11     0     0      35356    95.0%        488
+
+========================================================================
+SCENARIO: F_replay_stale
+========================================================================
+  Approach              1st Local  Med Local  1st Coord    Fleet  FalseEsc  Hits  Miss    Bytes/N  MaxSat%  HarmSteps
+  ---------------------------------------------------------------------------------------------------------------------
+  ghost_meadow                 31         31        138       31         0    11     0     768257    67.7%          0
+  local_only                   64         72        N/A       72         0     0    11          0    53.6%          0
+  exact_gossip                  9         11         25       11         0    11     0    1013476    95.0%        440
+  counter_agg                  13         14         22       14         0    11     0      40187    95.0%        549
+
+========================================================================
+SCENARIO: G_partition_asymmetry
+========================================================================
+  Approach              1st Local  Med Local  1st Coord    Fleet  FalseEsc  Hits  Miss    Bytes/N  MaxSat%  HarmSteps
+  ---------------------------------------------------------------------------------------------------------------------
+  ghost_meadow                 27         28        145       28         0     9     3    1070767    73.7%          0
+  local_only                   62         68        168       68         0    12     0          0    72.2%          0
+  exact_gossip                  6          8         18        8         0    12     0    1586661    95.0%        416
+  counter_agg                  23         25         55       25         0    12     0      64897    95.0%        376
+
+========================================================================
+SCENARIO: H_transport_hostility
+========================================================================
+  Approach              1st Local  Med Local  1st Coord    Fleet  FalseEsc  Hits  Miss    Bytes/N  MaxSat%  HarmSteps
+  ---------------------------------------------------------------------------------------------------------------------
+  ghost_meadow                 29         32        138       32         0    12     0     431340    73.7%          0
+  local_only                   62         70        172       70         0    12     0          0    72.3%          0
+  exact_gossip                  8         10         18       10         0    12     0     756140    95.0%        414
+  counter_agg                  26         27         71       27         0    12     0      31136    95.0%        359
+
+========================================================================
+SCENARIO: I_sybil_behavior
+========================================================================
+  Approach              1st Local  Med Local  1st Coord    Fleet  FalseEsc  Hits  Miss    Bytes/N  MaxSat%  HarmSteps
+  ---------------------------------------------------------------------------------------------------------------------
+  ghost_meadow                 25         26        108       26         0    11     0     645623    80.9%         12
+  local_only                   63         67        172       67         0    11     0          0    70.6%          0
+  exact_gossip                  7         12         19       12         0    11     0     876458    95.0%        399
+  counter_agg                   6          7         15        7         0    11     0      35153    95.0%        444
+
+
+ACCEPTANCE CRITERIA ASSESSMENT
+========================================================================
+
+A. Does Ghost Meadow outperform local-only detection?
+   GM detects faster or equal in 9/9 scenarios.
+
+B. Earlier coordinated-pressure awareness vs local-only?
+   B_coordinated_attack: GM=143, local=166
+   G_partition_asymmetry: GM=145, local=168
+   H_transport_hostility: GM=138, local=172
+
+C. Bandwidth cost vs exact-sharing baselines?
+   A_benign_baseline: GM=726960B/node, exact=1074775B/node, ratio=0.68x
+
+D. Poisoning impact?
+   C_single_poison: maxSat=73.2%, harmSteps=0, falseEsc=11
+   D_multi_collusion: maxSat=75.1%, harmSteps=0, falseEsc=9
+
+E. Quorum and trust-weighted policies?
+   C_single_poison: GM false_esc=11, local false_esc=11
+   D_multi_collusion: GM false_esc=9, local false_esc=9
+
+F. Saturation collapse threshold?
+   E_namespace_flood: maxSat=100.0%, harmfulSteps=453
+   I_sybil_behavior: maxSat=80.9%, harmfulSteps=12
+
+G. Profile viability?
+   edge_pop: avg_maxSat=76.8%, total_harmSteps=465
+
+H. Conditions where Ghost Meadow is a bad fit?
+   C_single_poison: false escalation under poisoning (11 nodes)
+   D_multi_collusion: false escalation under poisoning (9 nodes)
+   E_namespace_flood: excessive harmful saturation (453 steps)

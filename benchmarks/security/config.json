@@ -1,0 +1,138 @@
+{
+  "version": "1.0",
+  "description": "Ghost Meadow security evaluation benchmark configuration",
+  "global": {
+    "master_seed": 20260326,
+    "default_steps": 500,
+    "default_epoch_length": 200,
+    "bloom_m": 4096,
+    "bloom_k": 2,
+    "mission_key": "0xDEADBEEFCAFEBABE",
+    "metric_output_format": "csv"
+  },
+  "token_categories": [
+    "exploit_family",
+    "suspicious_path",
+    "scanner_behavior",
+    "auth_abuse",
+    "bot_signature",
+    "iot_anomaly",
+    "lateral_movement",
+    "protocol_anomaly"
+  ],
+  "deployment_profiles": {
+    "edge_pop": {
+      "num_nodes": 12,
+      "topology": "regional_mesh",
+      "contact_prob": 0.4,
+      "bloom_m": 4096,
+      "bloom_k": 2,
+      "description": "Regional edge POPs / WAF gateways"
+    },
+    "branch_iot": {
+      "num_nodes": 16,
+      "topology": "star_sparse",
+      "contact_prob": 0.15,
+      "bloom_m": 1024,
+      "bloom_k": 2,
+      "description": "Branch / IoT gateways with constrained connectivity"
+    },
+    "east_west": {
+      "num_nodes": 8,
+      "topology": "full_mesh",
+      "contact_prob": 0.6,
+      "bloom_m": 4096,
+      "bloom_k": 2,
+      "description": "East-west enterprise nodes"
+    },
+    "low_power": {
+      "num_nodes": 20,
+      "topology": "chain",
+      "contact_prob": 0.2,
+      "bloom_m": 512,
+      "bloom_k": 2,
+      "description": "Low-power / small-filter IoT variant"
+    }
+  },
+  "scenarios": {
+    "A_benign_baseline": {
+      "description": "Normal background noise, no coordinated attack",
+      "steps": 500,
+      "malicious_nodes": 0,
+      "attack_type": "none",
+      "background_token_rate": 3,
+      "fp_noise_rate": 0.05
+    },
+    "B_coordinated_attack": {
+      "description": "Multiple honest nodes detect related malicious patterns",
+      "steps": 500,
+      "malicious_nodes": 0,
+      "attack_type": "distributed_campaign",
+      "campaign_start_step": 100,
+      "campaign_token_rate": 8,
+      "campaign_affected_fraction": 0.6,
+      "background_token_rate": 3
+    },
+    "C_single_poison": {
+      "description": "One node floods suspicion tokens at high rate",
+      "steps": 500,
+      "malicious_nodes": 1,
+      "attack_type": "poison_flood",
+      "poison_token_rate": 50,
+      "background_token_rate": 3
+    },
+    "D_multi_collusion": {
+      "description": "Multiple malicious nodes coordinate poisoning",
+      "steps": 500,
+      "malicious_nodes": 3,
+      "attack_type": "coordinated_poison",
+      "poison_token_rate": 30,
+      "background_token_rate": 3
+    },
+    "E_namespace_flood": {
+      "description": "Attacker sprays broad token diversity to maximize saturation",
+      "steps": 500,
+      "malicious_nodes": 1,
+      "attack_type": "namespace_flood",
+      "flood_diversity": 200,
+      "background_token_rate": 3
+    },
+    "F_replay_stale": {
+      "description": "Old patterns rebroadcast across epoch boundaries",
+      "steps": 600,
+      "epoch_length": 150,
+      "malicious_nodes": 1,
+      "attack_type": "replay_stale",
+      "background_token_rate": 3
+    },
+    "G_partition_asymmetry": {
+      "description": "Asymmetric topology creating uneven regional pressure",
+      "steps": 500,
+      "malicious_nodes": 0,
+      "attack_type": "distributed_campaign",
+      "topology_override": "partitioned_clusters",
+      "campaign_start_step": 50,
+      "campaign_affected_fraction": 0.3,
+      "background_token_rate": 3
+    },
+    "H_transport_hostility": {
+      "description": "Packet corruption, burst loss, malformed packets",
+      "steps": 500,
+      "malicious_nodes": 0,
+      "attack_type": "distributed_campaign",
+      "campaign_start_step": 100,
+      "corruption_rate": 0.15,
+      "drop_rate": 0.3,
+      "background_token_rate": 3
+    },
+    "I_sybil_behavior": {
+      "description": "Multiple apparent peers from one adversarial source",
+      "steps": 500,
+      "malicious_nodes": 1,
+      "sybil_identities": 4,
+      "attack_type": "sybil_flood",
+      "poison_token_rate": 20,
+      "background_token_rate": 3
+    }
+  }
+}
