@@ -1,0 +1,73 @@
+{
+  "freeze_version": "1.0",
+  "freeze_timestamp": "2026-03-26T07:00:00Z",
+  "frozen_commit": "f453416f21650c365bdab2ff62eef8e6553c398c",
+  "description": "Pre-registered candidate freeze for blind falsification of Ghost Meadow security-telemetry thesis",
+
+  "frozen_system": {
+    "bloom_filter": "ghost_meadow.py — GhostMeadow class, FNV-1a hash, OR-merge, epoch decay",
+    "mission_key": "0xDEADBEEFCAFEBABE",
+    "policy_module": "benchmarks/security/security_policy.py",
+    "policy_variant": "composite",
+    "policy_thresholds": {
+      "sat_elevated": 25.0,
+      "sat_suspicious": 45.0,
+      "sat_coordinated": 65.0,
+      "sat_containment": 80.0,
+      "quorum_k": 3
+    },
+    "trust_model": "all_equal",
+    "token_encoding": "struct.pack('BBH', category, subcategory, variant)"
+  },
+
+  "profiles_under_test": {
+    "negative_control": {"m": 4096, "k": 2, "num_nodes": 12, "topology": "regional_mesh", "contact_prob": 0.4},
+    "good_regime_standard": {"m": 32768, "k": 7, "num_nodes": 12, "topology": "regional_mesh", "contact_prob": 0.4},
+    "good_regime_full": {"m": 192000, "k": 13, "num_nodes": 12, "topology": "regional_mesh", "contact_prob": 0.4}
+  },
+
+  "baselines": ["local_only", "exact_gossip", "counter_agg"],
+
+  "held_out_randomization": {
+    "seed_range": [50000, 59999],
+    "num_seeds": 10,
+    "topology_variants": ["ring", "star_sparse", "regional_mesh", "partitioned_clusters", "full_mesh"],
+    "contact_prob_variants": [0.15, 0.4, 0.7],
+    "epoch_length_variants": [100, 200, 300],
+    "token_vocabulary_shift": "held-out token families use variant_base=10000 to avoid overlap with dev vocabulary (variant_base=0-1500)"
+  },
+
+  "metrics_reported": [
+    "time_to_first_local_suspicion",
+    "time_to_fleet_awareness",
+    "false_escalation_count",
+    "true_coord_hits",
+    "missed_coord_attacks",
+    "max_saturation_pct",
+    "bytes_per_node",
+    "total_merges",
+    "steps_in_harmful_saturation",
+    "layer_a_fp_rate",
+    "layer_a_campaign_recall",
+    "benign_attack_separability_pct"
+  ],
+
+  "forbidden_after_freeze": [
+    "changing policy thresholds",
+    "changing bloom filter implementation",
+    "changing token encoding",
+    "changing merge semantics",
+    "changing epoch decay behavior",
+    "changing baseline implementations",
+    "dropping held-out conditions after seeing results",
+    "rewriting acceptance criteria after seeing results",
+    "adding scenario-specific policy tuning"
+  ],
+
+  "allowed_to_vary": [
+    "held-out seeds (generated, not hand-picked)",
+    "held-out topologies (from generator, not hand-picked)",
+    "held-out token vocabularies (shifted variant range)",
+    "held-out traffic patterns (parameterized, not cherry-picked)"
+  ]
+}
