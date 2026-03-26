@@ -1,0 +1,4 @@
+convergence_ratio,convergence_threshold,crc16_protected,drop_rate,drop_rate_per_fragment,filter_k,filter_m,filters_identical,final_saturation_pct,gossip_ticks,max_jitter_ms,mtu_bytes,node0_has_event_A,node0_has_event_B,node9_has_event_A,node9_has_event_B,num_fragments,num_nodes,observations,or_merge_commutativity_holds,packets_delivered,packets_dropped,pass,payload_bytes,receiver_saturation_pct,target_saturation_pct,test,theoretical_success_rate,transmission_succeeded
+1.0,0.9,,0.3,,2,4096,,2.3682,50,,,,,,,,10,50,,38,7,True,512,,2.3682,dpi_firewall_survival,,
+,,True,,0.01,13,192000,,,,,256,,,,,94,,,,,,True,24000,0.0,,mtu_fragmentation_collapse,0.3888,False
+,,,,,2,4096,True,,,50,,True,True,True,True,,,,True,,,True,512,,,asymmetric_jitter_convergence,,

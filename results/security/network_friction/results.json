@@ -1,0 +1,52 @@
+{
+  "tests": [
+    {
+      "test": "dpi_firewall_survival",
+      "pass": true,
+      "drop_rate": 0.3,
+      "filter_m": 4096,
+      "filter_k": 2,
+      "payload_bytes": 512,
+      "num_nodes": 10,
+      "observations": 50,
+      "gossip_ticks": 50,
+      "target_saturation_pct": 2.3682,
+      "final_saturation_pct": 2.3682,
+      "convergence_ratio": 1.0,
+      "packets_delivered": 38,
+      "packets_dropped": 7,
+      "convergence_threshold": 0.9
+    },
+    {
+      "test": "mtu_fragmentation_collapse",
+      "pass": true,
+      "drop_rate_per_fragment": 0.01,
+      "filter_m": 192000,
+      "filter_k": 13,
+      "payload_bytes": 24000,
+      "mtu_bytes": 256,
+      "num_fragments": 94,
+      "theoretical_success_rate": 0.3888,
+      "transmission_succeeded": false,
+      "receiver_saturation_pct": 0.0,
+      "crc16_protected": true
+    },
+    {
+      "test": "asymmetric_jitter_convergence",
+      "pass": true,
+      "max_jitter_ms": 50,
+      "filter_m": 4096,
+      "filter_k": 2,
+      "payload_bytes": 512,
+      "filters_identical": true,
+      "node0_has_event_A": true,
+      "node0_has_event_B": true,
+      "node9_has_event_A": true,
+      "node9_has_event_B": true,
+      "or_merge_commutativity_holds": true
+    }
+  ],
+  "all_passed": true,
+  "timestamp": "2026-03-26 10:55:33",
+  "seed": 20260326
+}
