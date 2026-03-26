@@ -1,0 +1,76 @@
+{
+  "freeze_version": "1.0",
+  "freeze_timestamp": "2026-03-26T12:00:00Z",
+  "description": "Frozen candidate for cooperative-enclave bakeoff",
+
+  "frozen_candidate": {
+    "layer_a": "ghost_meadow.py GhostMeadow class, m=4096, k=2 (512 bytes)",
+    "layer_b": "capacity_aware_policy.py CapacityAwarePolicy",
+    "node_wrapper": "capacity_aware_node.py CapacityAwareNode",
+    "mission_key": "0xDEADBEEFCAFEBABE",
+    "policy_params": {
+      "lambda_est": 0.5,
+      "delta_critical": 0.08,
+      "velocity_window": 5,
+      "velocity_sigma": 3.0,
+      "calibration_ticks": 20
+    }
+  },
+
+  "deployment_shape": {
+    "num_nodes": 32,
+    "contact_prob": 0.3,
+    "epoch_length": 300,
+    "steps": 300,
+    "topologies": ["corridor", "wing_gateway", "campus_building"],
+    "threat_model": "trusted cooperative enclave, no adversary"
+  },
+
+  "baselines": {
+    "ewma_local": "EWMALocalNode — local EWMA pressure, no sharing",
+    "scalar_max": "ScalarMaxGossipNode — gossip max pressure scalar (4B/merge)",
+    "scalar_mean": "ScalarMeanGossipNode — gossip mean+count (8B/merge)"
+  },
+
+  "scenarios": [
+    "overlap_identical_event",
+    "overlap_moving_cluster",
+    "overlap_rebroadcast_storm",
+    "breadth_weak_distributed",
+    "breadth_gradient",
+    "breadth_vs_benign_bustle",
+    "shift_change_bustle",
+    "partition_heal",
+    "corridor_bottleneck"
+  ],
+
+  "execution": {
+    "seeds": 20,
+    "seed_range_start": 70000,
+    "seed_spacing": 137,
+    "topology_variants": 3,
+    "total_runs_per_approach": 540
+  },
+
+  "acceptance_criteria": {
+    "SUPPORT": {
+      "dedup_amplification": "GM elevated_rate under overlap <= scalar baselines in >=80% seeds",
+      "breadth_detection": "GM elevated_rate under distributed breadth >= 50% while scalar_max <= 20% in >=80% seeds",
+      "benign_bustle": "GM false escalation rate <= scalar baselines",
+      "stability": "std <= 20% of mean for key metrics",
+      "bandwidth": "GM bytes_per_node <= 2x cheapest scalar"
+    },
+    "FAILURE": {
+      "no_structural_win": "GM does not beat scalars on either claim",
+      "false_escalation": "GM bustle false alarm rate > all scalars",
+      "trivial_gains": "improvements < 5%"
+    }
+  },
+
+  "forbidden_after_freeze": [
+    "tuning policy parameters",
+    "changing baseline thresholds",
+    "dropping scenarios after seeing results",
+    "modifying acceptance criteria"
+  ]
+}
