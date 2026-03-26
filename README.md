@@ -70,7 +70,7 @@ Transport: ghost_transport.h (v1.1 — CRC-16)
 | `ghost_profiles.h` | Configurable node profiles — Tiny/Micro/Standard/Full sizing with heterogeneous merge support. |
 | `ghost_persist.h` | Persistence layer — snapshot save/restore to flat buffer with CRC-16 integrity. |
 | `swarm_visualizer.py` | Network topology visualizer — terminal (ANSI) and matplotlib replay of merge propagation. |
-| `ghost_meadow_wasm.html` | Interactive browser demo — JS port of core algorithm with real-time swarm visualization. |
+| `index.html` | Interactive browser demo — JS port of core algorithm with real-time swarm visualization. |
 | `GhostMeadow.tla` | Formal TLA+ specification — CRDT properties, quorum guard, convergence proofs. |
 | `GhostMeadow.cfg` | TLC model checker configuration for small-model verification. |
 | `test_profiles_persist.cpp` | Tests for configurable profiles and persistence layer. |
