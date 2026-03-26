@@ -1,0 +1,41 @@
+========================================================================
+BLIND FALSIFICATION VERDICT
+Frozen commit: f453416f2165
+Conditions: 105, Runs: 315
+========================================================================
+
+--- Profile: negative_control_4096 (n=35) ---
+  OVERALL: FAILURE
+
+  Awareness speedup: GM faster in 100% of conditions -> SUPPORT
+    Mean advantage: 34.2 ± 12.8 steps
+  Bandwidth ≤80% of exact gossip: 91% of conditions -> SUPPORT
+  False escalation (benign): max=12 mean=10.6 -> FAILURE
+  Coord hit rate: 0.27 -> FAILURE
+  Benign saturation: 75.2% -> FAILURE
+  Seed stability (CV): 0.078 -> SUPPORT
+  Layer A FP: 0.0160, Recall: 1.000
+
+--- Profile: good_regime_32768 (n=35) ---
+  OVERALL: FAILURE
+
+  Awareness speedup: GM faster in 14% of conditions -> FAILURE
+    Mean advantage: -1.8 ± 24.6 steps
+  Bandwidth ≤80% of exact gossip: 0% of conditions -> FAILURE
+  False escalation (benign): max=0 mean=0.0 -> SUPPORT
+  Coord hit rate: 0.00 -> FAILURE
+  Benign saturation: 50.1% -> FAILURE
+  Seed stability (CV): 0.055 -> SUPPORT
+  Layer A FP: 0.0000, Recall: 1.000
+
+--- Profile: good_regime_192000 (n=35) ---
+  OVERALL: FAILURE
+
+  Awareness speedup: GM faster in 14% of conditions -> FAILURE
+    Mean advantage: 45.4 ± 1.6 steps
+  Bandwidth ≤80% of exact gossip: 0% of conditions -> FAILURE
+  False escalation (benign): max=0 mean=0.0 -> SUPPORT
+  Coord hit rate: 0.00 -> FAILURE
+  Benign saturation: 19.0% -> SUPPORT
+  Seed stability (CV): 0.022 -> SUPPORT
+  Layer A FP: 0.0000, Recall: 1.000
