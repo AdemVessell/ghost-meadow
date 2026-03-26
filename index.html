@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ghost Meadow — Interactive Swarm Simulation</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0f;
+      color: #e0e0e0;
+      font-family: 'Courier New', monospace;
+      overflow: hidden;
+    }
+    #header {
+      padding: 12px 20px;
+      background: #111118;
+      border-bottom: 1px solid #2a2a3a;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #header h1 { font-size: 16px; color: #7ec8e3; }
+    #header .subtitle { font-size: 11px; color: #666; }
+    #controls {
+      padding: 8px 20px;
+      background: #0d0d14;
+      border-bottom: 1px solid #1a1a2a;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .ctrl-group { display: flex; align-items: center; gap: 6px; }
+    .ctrl-group label { font-size: 11px; color: #888; }
+    .ctrl-group input, .ctrl-group select {
+      background: #1a1a2a;
+      border: 1px solid #333;
+      color: #ddd;
+      padding: 3px 6px;
+      font-size: 11px;
+      font-family: inherit;
+      border-radius: 3px;
+    }
+    .ctrl-group input[type="range"] { width: 80px; }
+    button {
+      background: #1a3a5a;
+      border: 1px solid #2a5a8a;
+      color: #7ec8e3;
+      padding: 4px 12px;
+      font-size: 11px;
+      font-family: inherit;
+      cursor: pointer;
+      border-radius: 3px;
+    }
+    button:hover { background: #2a4a6a; }
+    button.active { background: #2a5a2a; border-color: #4a8a4a; color: #7ee37e; }
+    #main { display: flex; height: calc(100vh - 90px); }
+    #canvas-wrap { flex: 1; position: relative; }
+    canvas { width: 100%; height: 100%; }
+    #sidebar {
+      width: 300px;
+      background: #0d0d14;
+      border-left: 1px solid #1a1a2a;
+      padding: 10px;
+      overflow-y: auto;
+      font-size: 11px;
+    }
+    .node-card {
+      background: #111118;
+      border: 1px solid #222;
+      border-radius: 4px;
+      padding: 6px 8px;
+      margin-bottom: 4px;
+    }
+    .node-card .nid { font-weight: bold; }
+    .node-card .sat-bar {
+      height: 6px;
+      background: #1a1a2a;
+      border-radius: 3px;
+      margin: 3px 0;
+      overflow: hidden;
+    }
+    .node-card .sat-fill { height: 100%; border-radius: 3px; transition: width 0.2s; }
+    .zone-nom { color: #2ecc71; }
+    .zone-ylw { color: #f1c40f; }
+    .zone-org { color: #e67e22; }
+    .zone-red { color: #e74c3c; }
+    .section-head {
+      color: #7ec8e3;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #222;
+      margin-bottom: 4px;
+    }
+    #stats { margin-top: 8px; padding-top: 8px; border-top: 1px solid #222; }
+    #transport-stats { margin-top: 8px; padding-top: 8px; border-top: 1px solid #222; }
+    #forensic-panel { margin-top: 8px; padding-top: 8px; border-top: 1px solid #222; }
+    .forensic-epoch {
+      background: #111118;
+      border: 1px solid #1a1a2a;
+      border-radius: 4px;
+      padding: 4px 8px;
+      margin-bottom: 3px;
+    }
+    .forensic-epoch .epoch-label { color: #9b59b6; font-weight: bold; }
+    .forensic-minibar {
+      display: inline-block;
+      width: 60px;
+      height: 4px;
+      background: #1a1a2a;
+      border-radius: 2px;
+      overflow: hidden;
+      vertical-align: middle;
+      margin-left: 6px;
+    }
+    .forensic-minibar .forensic-fill {
+      height: 100%;
+      background: #9b59b6;
+      border-radius: 2px;
+    }
+    #log {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #222;
+      max-height: 180px;
+      overflow-y: auto;
+      font-size: 10px;
+      color: #666;
+    }
+    #log div { padding: 1px 0; }
+    .log-corrupt { color: #e74c3c; }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <div>
+      <h1>Ghost Meadow — Interactive Swarm Simulation</h1>
+      <div class="subtitle">Probabilistic memory substrate for embedded swarm systems</div>
+    </div>
+    <div style="font-size:11px;color:#555;">Step: <span id="step-counter">0</span></div>
+  </div>
+  <div id="controls">
+    <div class="ctrl-group">
+      <label>Nodes:</label>
+      <input type="range" id="num-nodes" min="3" max="32" value="8">
+      <span id="num-nodes-val">8</span>
+    </div>
+    <div class="ctrl-group">
+      <label>Topology:</label>
+      <select id="topology">
+        <option value="range">Range (±3)</option>
+        <option value="chain">Chain</option>
+        <option value="ring">Ring</option>
+        <option value="mesh">Full Mesh</option>
+      </select>
+    </div>
+    <div class="ctrl-group">
+      <label>Speed:</label>
+      <input type="range" id="speed" min="1" max="60" value="10">
+    </div>
+    <div class="ctrl-group">
+      <label>Autonomy:</label>
+      <input type="range" id="autonomy" min="0" max="100" value="50">
+      <span id="autonomy-val">0.50</span>
+    </div>
+    <div class="ctrl-group">
+      <label>Corrupt%:</label>
+      <input type="range" id="corrupt-rate" min="0" max="50" value="0">
+      <span id="corrupt-rate-val">0%</span>
+    </div>
+    <div class="ctrl-group">
+      <label>Auto-Epoch:</label>
+      <input type="range" id="auto-epoch-thresh" min="0" max="95" value="0">
+      <span id="auto-epoch-val">OFF</span>
+    </div>
+    <button id="btn-play" class="active">&#9654; Play</button>
+    <button id="btn-step">Step</button>
+    <button id="btn-decay">Decay</button>
+    <button id="btn-reset">Reset</button>
+    <button id="btn-poison">Poison N0</button>
+  </div>
+  <div id="main">
+    <div id="canvas-wrap">
+      <canvas id="sim-canvas"></canvas>
+    </div>
+    <div id="sidebar">
+      <div id="node-cards"></div>
+      <div id="stats"></div>
+      <div id="transport-stats"></div>
+      <div id="forensic-panel"></div>
+      <div id="log"></div>
+    </div>
+  </div>
+
+<script>
+// =========================================================================
+// Ghost Meadow JS — bit-identical port of ghost_meadow.h core
+// v1.1: + Dead Meadow forensic snapshots + CRC-16 transport layer
+// Hash function uses BigInt for faithful 64-bit arithmetic matching C++
+// =========================================================================
+
+const FNV_PRIME   = 16777619;
+const FNV_OFFSET  = 2166136261;
+const MIX_CONST   = 0x45d9f3b;
+
+// 64-bit constants for hash seed derivation (BigInt)
+const GOLDEN_64   = 0x9e3779b97f4a7c15n;
+const MASK_32     = 0xFFFFFFFFn;
+
+// Forensic snapshot config — matches GM_EPOCH_LOG_SIZE in ghost_meadow.h
+const GM_EPOCH_LOG_SIZE = 4;
+
+function mul32(a, b) {
+  const al = a & 0xFFFF, ah = (a >>> 16) & 0xFFFF;
+  const bl = b & 0xFFFF, bh = (b >>> 16) & 0xFFFF;
+  return ((al * bl) + (((ah * bl + al * bh) & 0xFFFF) << 16)) >>> 0;
+}
+
+function fnv1a_hash(missionKey64n, data, hashIdx) {
+  // ---------------------------------------------------------------
+  // Bit-identical match to C++ ghost_meadow.h _hash():
+  //   uint32_t seed = (uint32_t)(mission_key ^ ((uint64_t)hash_idx * 0x9e3779b97f4a7c15ULL));
+  //   uint32_t h = FNV_OFFSET ^ seed;
+  //   for each byte: h ^= byte; h *= FNV_PRIME;
+  //   h ^= h >> 16; h *= 0x45d9f3b; h ^= h >> 16;
+  // ---------------------------------------------------------------
+  const product = BigInt(hashIdx) * GOLDEN_64;
+  const xored   = missionKey64n ^ product;
+  const seed    = Number(xored & MASK_32) >>> 0;
+
+  let h = (FNV_OFFSET ^ seed) >>> 0;
+  for (let i = 0; i < data.length; i++) {
+    h = (h ^ data[i]) >>> 0;
+    h = mul32(h, FNV_PRIME);
+  }
+
+  h = (h ^ (h >>> 16)) >>> 0;
+  h = mul32(h, MIX_CONST);
+  h = (h ^ (h >>> 16)) >>> 0;
+  return h;
+}
+
+
+// =========================================================================
+// CRC-16 — faithful port of ghost_transport.h
+// CRC-16/ARC polynomial 0xA001 (bit-reversed 0x8005)
+// =========================================================================
+
+function crc16(data, len) {
+  let crc = 0xFFFF;
+  for (let i = 0; i < len; i++) {
+    crc ^= data[i];
+    for (let bit = 0; bit < 8; bit++) {
+      if (crc & 1) {
+        crc = (crc >>> 1) ^ 0xA001;
+      } else {
+        crc = crc >>> 1;
+      }
+    }
+  }
+  return crc & 0xFFFF;
+}
+
+// Pack burst: [payload bytes] + [CRC-16 lo] + [CRC-16 hi]
+function packBurst(bits, numBytes) {
+  var packet = new Uint8Array(numBytes + 2);
+  packet.set(bits.subarray(0, numBytes));
+  var crc = crc16(bits, numBytes);
+  packet[numBytes]     = crc & 0xFF;
+  packet[numBytes + 1] = (crc >>> 8) & 0xFF;
+  return packet;
+}
+
+// Unpack burst: validate CRC, return {valid, payload}
+function unpackBurst(packet, expectedPayloadBytes) {
+  if (packet.length < expectedPayloadBytes + 2) {
+    return { valid: false, payload: null };
+  }
+  var payload = packet.subarray(0, expectedPayloadBytes);
+  var receivedCrc = packet[expectedPayloadBytes] | (packet[expectedPayloadBytes + 1] << 8);
+  var computedCrc = crc16(payload, expectedPayloadBytes);
+  return {
+    valid: receivedCrc === computedCrc,
+    payload: payload
+  };
+}
+
+// Corrupt a packet by flipping random bits
+function corruptPacket(packet, rngFn) {
+  var corrupted = new Uint8Array(packet);
+  var numFlips = 1 + ((rngFn() * 3) | 0);
+  for (var f = 0; f < numFlips; f++) {
+    var byteIdx = (rngFn() * corrupted.length) | 0;
+    var bitIdx  = (rngFn() * 8) | 0;
+    corrupted[byteIdx] ^= (1 << bitIdx);
+  }
+  return corrupted;
+}
+
+
+// =========================================================================
+// GhostMeadowJS — Layer A with Dead Meadow forensic snapshots
+// =========================================================================
+
+class GhostMeadowJS {
+  constructor(nodeId, m = 4096, k = 2) {
+    this.nodeId = nodeId;
+    this.m = m;
+    this.k = k;
+    this.bytes = m >>> 3;
+    this.bits = new Uint8Array(this.bytes);
+    this.bitsSet = 0;
+    this.epoch = 0;
+    this.mergeSources = new Set();
+    this.totalMerges = 0;
+    this.mergeDeltaLast = 0;
+    this.ghostTriggerCount = 0;
+    this.zone = 0;
+
+    // Mission key as full 64-bit BigInt — matches C++ 0xDEADBEEFCAFEBABE
+    this.missionKey = 0xDEADBEEFCAFEBABEn;
+
+    // Dead Meadow forensic snapshot ring buffer (GM_EPOCH_LOG_SIZE slots)
+    this.epochSnapshots = [];
+    for (var i = 0; i < GM_EPOCH_LOG_SIZE; i++) {
+      this.epochSnapshots.push({ bits: new Uint8Array(this.bytes), satPct: 0, epochId: -1 });
+    }
+  }
+
+  _hash(data, hashIdx) {
+    return fnv1a_hash(this.missionKey, data, hashIdx) % this.m;
+  }
+
+  seed(obs) {
+    for (var i = 0; i < this.k; i++) {
+      var pos = this._hash(obs, i);
+      var byteIdx = pos >>> 3;
+      var bitIdx  = pos & 7;
+      if (!(this.bits[byteIdx] & (1 << bitIdx))) {
+        this.bits[byteIdx] |= (1 << bitIdx);
+        this.bitsSet++;
+      }
+    }
+  }
+
+  query(obs) {
+    for (var i = 0; i < this.k; i++) {
+      var pos = this._hash(obs, i);
+      if (!(this.bits[pos >>> 3] & (1 << (pos & 7)))) return false;
+    }
+    return true;
+  }
+
+  mergeRaw(otherBits, srcId) {
+    var len = Math.min(otherBits.length, this.bytes);
+    var delta = 0;
+    for (var i = 0; i < len; i++) {
+      var before = this.bits[i];
+      this.bits[i] |= otherBits[i];
+      var diff = this.bits[i] & ~before;
+      diff = diff - ((diff >>> 1) & 0x55);
+      diff = (diff & 0x33) + ((diff >>> 2) & 0x33);
+      delta += (diff + (diff >>> 4)) & 0x0F;
+    }
+    this.bitsSet = this._countBits();
+    this.mergeDeltaLast = delta;
+    if (!this.mergeSources.has(srcId)) {
+      this.mergeSources.add(srcId);
+    }
+    this.totalMerges++;
+    return delta;
+  }
+
+  decay() {
+    // Save snapshot before clearing — Dead Meadow forensic mode
+    // Matches ghost_meadow.h: memcpy(_epoch_snapshots[slot], _bits, BYTES)
+    var slot = this.epoch % GM_EPOCH_LOG_SIZE;
+    this.epochSnapshots[slot].bits.set(this.bits);
+    this.epochSnapshots[slot].satPct = this.saturationPct();
+    this.epochSnapshots[slot].epochId = this.epoch;
+
+    // Clear meadow
+    this.bits.fill(0);
+    this.bitsSet = 0;
+    this.mergeSources.clear();
+    this.mergeDeltaLast = 0;
+    this.epoch++;
+  }
+
+  // Forensic access — matches ghost_meadow.h epoch_snapshot(offset)
+  // offset 0 = most recent decay, offset 1 = one before that, etc.
+  epochSnapshot(offset) {
+    if (offset >= GM_EPOCH_LOG_SIZE) return null;
+    var targetEpoch = this.epoch - 1 - offset;
+    if (targetEpoch < 0) return null;
+    var slot = targetEpoch % GM_EPOCH_LOG_SIZE;
+    var snap = this.epochSnapshots[slot];
+    if (snap.epochId !== targetEpoch) return null;
+    return snap;
+  }
+
+  saturation()       { return this.bitsSet / this.m; }
+  saturationPct()    { return this.saturation() * 100; }
+  mergeSourceCount() { return this.mergeSources.size; }
+
+  _countBits() {
+    var c = 0;
+    for (var i = 0; i < this.bytes; i++) {
+      var b = this.bits[i];
+      b = b - ((b >>> 1) & 0x55);
+      b = (b & 0x33) + ((b >>> 2) & 0x33);
+      c += (b + (b >>> 4)) & 0x0F;
+    }
+    return c;
+  }
+}
+
+
+// =========================================================================
+// Policy engine (JS port of ghost_policy.h)
+// =========================================================================
+
+class GhostPolicyJS {
+  constructor(autonomy, quorumK) {
+    this.autonomy = Math.max(0, Math.min(1, autonomy || 0.5));
+    this.quorumK = quorumK || 3;
+    this.satYellow = 40;
+    this.satOrange = 65;
+    this.satRed    = 85;
+    this.ghostTriggerSat = 50;
+    this.ghostArmed = true;
+  }
+
+  evaluate(meadow) {
+    var sat     = meadow.saturationPct();
+    var sources = meadow.mergeSourceCount();
+    var shift   = this.autonomy * 15;
+
+    var effYellow = Math.min(this.satYellow + shift, 100);
+    var effOrange = Math.min(this.satOrange + shift, 100);
+    var effRed    = Math.min(this.satRed    + shift, 100);
+
+    var zone = 0;
+    if      (sat >= effRed)    zone = 3;
+    else if (sat >= effOrange) zone = 2;
+    else if (sat >= effYellow) zone = 1;
+
+    var quorumMet = sources >= this.quorumK;
+    var redBlocked = false;
+    if (zone === 3 && !quorumMet) { zone = 2; redBlocked = true; }
+
+    meadow.zone = zone;
+
+    var ghostTriggered = false;
+    var ghostThresh = Math.min(this.ghostTriggerSat + this.autonomy * 10, 100);
+    if (this.ghostArmed && sat >= ghostThresh) {
+      meadow.ghostTriggerCount++;
+      ghostTriggered = true;
+      this.ghostArmed = false;
+    }
+
+    return { zone: zone, quorumMet: quorumMet, redBlocked: redBlocked, ghostTriggered: ghostTriggered };
+  }
+
+  rearm() { this.ghostArmed = true; }
+}
+
+
+// =========================================================================
+// Simulation state
+// =========================================================================
+
+var NUM_NODES = 8;
+var nodes = [];
+var policy;
+var step = 0;
+var running = true;
+var poisonMode = false;
+var mergeEdges = [];
+
+// Transport stats (cumulative)
+var transportStats = {
+  packetsSent: 0,
+  packetsCorrupted: 0,
+  packetsRejected: 0,
+  packetsLeaked: 0,
+  packetsAccepted: 0
+};
+
+// xorshift state
+var rngLo = 0xABCDEF01;
+
+function xorshift32() {
+  var x = rngLo;
+  x ^= (x << 13) >>> 0;
+  x ^= (x >>> 17);
+  x ^= (x << 5) >>> 0;
+  rngLo = x;
+  return x >>> 0;
+}
+function rngF() { return (xorshift32() % 10000) / 10000; }
+
+function initSim() {
+  NUM_NODES = parseInt(document.getElementById('num-nodes').value);
+  nodes = [];
+  for (var i = 0; i < NUM_NODES; i++) {
+    nodes.push(new GhostMeadowJS(i, 4096, 2));
+  }
+  var autonomy = parseInt(document.getElementById('autonomy').value) / 100;
+  policy = new GhostPolicyJS(autonomy, 3);
+  step = 0;
+  mergeEdges = [];
+  poisonMode = false;
+  transportStats = { packetsSent: 0, packetsCorrupted: 0, packetsRejected: 0, packetsLeaked: 0, packetsAccepted: 0 };
+  document.getElementById('btn-poison').textContent = 'Poison N0';
+  rngLo = 0xABCDEF01;
+  clearLog();
+  addLog('Simulation reset');
+}
+
+function getTopology() { return document.getElementById('topology').value; }
+
+function inRange(i, j) {
+  var topo = getTopology();
+  var d = Math.abs(i - j);
+  if (topo === 'mesh')  return true;
+  if (topo === 'chain') return d <= 1;
+  if (topo === 'ring')  return d <= 1 || d >= NUM_NODES - 1;
+  return d <= 3;
+}
+
+function simStep() {
+  step++;
+  mergeEdges = [];
+
+  var corruptRate = parseInt(document.getElementById('corrupt-rate').value) / 100;
+
+  // Seed phase
+  for (var i = 0; i < NUM_NODES; i++) {
+    var rate = (poisonMode && i === 0) ? 30 : (rngF() < 0.6 ? 1 + (xorshift32() % 3) : 0);
+    for (var s = 0; s < rate; s++) {
+      var v = xorshift32();
+      nodes[i].seed([v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF, (v >> 24) & 0xFF]);
+    }
+  }
+
+  // Merge phase — routed through CRC-16 transport layer
+  for (var i = 0; i < NUM_NODES; i++) {
+    for (var j = 0; j < NUM_NODES; j++) {
+      if (i === j) continue;
+      if (inRange(i, j) && rngF() < 0.4) {
+
+        // Pack source node's bits into a burst packet with CRC-16
+        var packet = packBurst(nodes[j].bits, nodes[j].bytes);
+        transportStats.packetsSent++;
+
+        // Simulate channel corruption
+        var wasCorrupted = false;
+        if (corruptRate > 0 && rngF() < corruptRate) {
+          packet = corruptPacket(packet, rngF);
+          transportStats.packetsCorrupted++;
+          wasCorrupted = true;
+        }
+
+        // Unpack with CRC-16 validation
+        var result = unpackBurst(packet, nodes[j].bytes);
+
+        if (result.valid) {
+          // CRC passed — merge the payload
+          nodes[i].mergeRaw(result.payload, nodes[j].nodeId);
+          mergeEdges.push([j, i]);
+          transportStats.packetsAccepted++;
+
+          // Integrity canary: corrupted but CRC passed = leak
+          if (wasCorrupted) {
+            transportStats.packetsLeaked++;
+            addLog('Step ' + step + ': CRC LEAK — corrupted N' + j + '\u2192N' + i + ' passed!', 'log-corrupt');
+          }
+        } else {
+          // CRC failed — packet rejected, no merge
+          transportStats.packetsRejected++;
+        }
+      }
+    }
+  }
+
+  // Policy phase
+  var autonomy = parseInt(document.getElementById('autonomy').value) / 100;
+  policy.autonomy = autonomy;
+  for (var i = 0; i < NUM_NODES; i++) {
+    var r = policy.evaluate(nodes[i]);
+    if (r.ghostTriggered) {
+      addLog('Step ' + step + ': Ghost trigger fired on N' + i);
+    }
+  }
+
+  // Auto-epoch — deployment-level trigger (calls the same decay() as manual button)
+  // Equivalent to sim_main.cpp's hardcoded decay at step 250, but threshold-driven
+  var autoThresh = parseInt(document.getElementById('auto-epoch-thresh').value);
+  if (autoThresh > 0) {
+    var triggerDecay = false;
+    for (var i = 0; i < NUM_NODES; i++) {
+      if (nodes[i].saturationPct() >= autoThresh) {
+        triggerDecay = true;
+        break;
+      }
+    }
+    if (triggerDecay) {
+      for (var i = 0; i < nodes.length; i++) nodes[i].decay();
+      policy.rearm();
+      addLog('Step ' + step + ': Auto-epoch decay \u2014 threshold ' + autoThresh + '% reached, snapshots saved');
+    }
+  }
+
+  document.getElementById('step-counter').textContent = step;
+}
+
+
+// =========================================================================
+// Canvas rendering
+// =========================================================================
+
+var canvas = document.getElementById('sim-canvas');
+var ctx = canvas.getContext('2d');
+var ZONE_COLORS = ['#2ecc71', '#f1c40f', '#e67e22', '#e74c3c'];
+var ZONE_NAMES  = ['NOM', 'YLW', 'ORG', 'RED'];
+
+function resize() {
+  var wrap = document.getElementById('canvas-wrap');
+  canvas.width  = wrap.clientWidth  * window.devicePixelRatio;
+  canvas.height = wrap.clientHeight * window.devicePixelRatio;
+  canvas.style.width  = wrap.clientWidth  + 'px';
+  canvas.style.height = wrap.clientHeight + 'px';
+  ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+}
+
+function nodePositions() {
+  var w  = canvas.width  / window.devicePixelRatio;
+  var h  = canvas.height / window.devicePixelRatio;
+  var cx = w / 2, cy = h / 2;
+  var r  = Math.min(cx, cy) * 0.7;
+  var pos = [];
+  for (var i = 0; i < NUM_NODES; i++) {
+    var angle = (2 * Math.PI * i / NUM_NODES) - Math.PI / 2;
+    pos.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
+  }
+  return pos;
+}
+
+function render() {
+  var w = canvas.width  / window.devicePixelRatio;
+  var h = canvas.height / window.devicePixelRatio;
+  ctx.clearRect(0, 0, w, h);
+  var pos = nodePositions();
+
+  // Draw topology edges (dim)
+  ctx.strokeStyle = '#1a1a2a';
+  ctx.lineWidth = 0.5;
+  for (var i = 0; i < NUM_NODES; i++) {
+    for (var j = i + 1; j < NUM_NODES; j++) {
+      if (inRange(i, j)) {
+        ctx.beginPath();
+        ctx.moveTo(pos[i].x, pos[i].y);
+        ctx.lineTo(pos[j].x, pos[j].y);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Draw merge edges (active this step)
+  for (var e = 0; e < mergeEdges.length; e++) {
+    var src = mergeEdges[e][0], dst = mergeEdges[e][1];
+    var dx = pos[dst].x - pos[src].x;
+    var dy = pos[dst].y - pos[src].y;
+    ctx.strokeStyle = 'rgba(52, 152, 219, 0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(pos[src].x, pos[src].y);
+    ctx.lineTo(pos[dst].x, pos[dst].y);
+    ctx.stroke();
+
+    var len = Math.sqrt(dx * dx + dy * dy);
+    if (len > 0) {
+      var nx = dx / len, ny = dy / len;
+      var ax = pos[dst].x - nx * 20, ay = pos[dst].y - ny * 20;
+      ctx.fillStyle = 'rgba(52, 152, 219, 0.4)';
+      ctx.beginPath();
+      ctx.moveTo(pos[dst].x - nx * 16, pos[dst].y - ny * 16);
+      ctx.lineTo(ax - ny * 4, ay + nx * 4);
+      ctx.lineTo(ax + ny * 4, ay - nx * 4);
+      ctx.fill();
+    }
+  }
+
+  // Draw nodes
+  for (var i = 0; i < NUM_NODES; i++) {
+    var n   = nodes[i];
+    var sat = n.saturationPct();
+    var zone = n.zone;
+    var color = ZONE_COLORS[zone];
+    var radius = 14 + sat * 0.15;
+    var p = pos[i];
+
+    var grad = ctx.createRadialGradient(p.x, p.y, radius * 0.5, p.x, p.y, radius * 2);
+    grad.addColorStop(0, color + '30');
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius * 2, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = color;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 10px Courier New';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(i.toString(), p.x, p.y);
+
+    ctx.fillStyle = '#888';
+    ctx.font = '9px Courier New';
+    ctx.fillText(sat.toFixed(1) + '%', p.x, p.y + radius + 12);
+  }
+
+  // Variance display
+  var sats = [];
+  for (var i = 0; i < NUM_NODES; i++) sats.push(nodes[i].saturationPct());
+  var mean = 0;
+  for (var i = 0; i < NUM_NODES; i++) mean += sats[i];
+  mean /= NUM_NODES;
+  var variance = 0;
+  for (var i = 0; i < NUM_NODES; i++) variance += (sats[i] - mean) * (sats[i] - mean);
+  variance /= NUM_NODES;
+
+  ctx.fillStyle = '#555';
+  ctx.font = '11px Courier New';
+  ctx.textAlign = 'left';
+  ctx.fillText('variance: ' + variance.toFixed(6) + '  step: ' + step + '  epoch: ' + nodes[0].epoch, 10, h - 10);
+
+  updateSidebar(sats, mean, variance);
+}
+
+function updateSidebar(sats, mean, variance) {
+  // Node cards
+  var cardsDiv = document.getElementById('node-cards');
+  var html = '';
+  for (var i = 0; i < NUM_NODES; i++) {
+    var n = nodes[i];
+    var sat = sats[i];
+    var zone = n.zone;
+    var zoneClass = ['zone-nom', 'zone-ylw', 'zone-org', 'zone-red'][zone];
+    var fillColor = ZONE_COLORS[zone];
+    html += '<div class="node-card">' +
+      '<span class="nid ' + zoneClass + '">N' + i + '</span>' +
+      '<span style="float:right;color:#666">' + ZONE_NAMES[zone] + '</span>' +
+      '<div class="sat-bar"><div class="sat-fill" style="width:' + sat + '%;background:' + fillColor + '"></div></div>' +
+      '<span style="color:#888">' + sat.toFixed(2) + '%</span>' +
+      '<span style="float:right;color:#555">m:' + n.totalMerges + ' s:' + n.mergeSourceCount() + '</span>' +
+    '</div>';
+  }
+  cardsDiv.innerHTML = html;
+
+  // Swarm stats
+  var statsDiv = document.getElementById('stats');
+  var satMin = sats[0], satMax = sats[0];
+  for (var i = 1; i < sats.length; i++) {
+    if (sats[i] < satMin) satMin = sats[i];
+    if (sats[i] > satMax) satMax = sats[i];
+  }
+  var totalMerges = 0;
+  for (var i = 0; i < NUM_NODES; i++) totalMerges += nodes[i].totalMerges;
+  var convergedHtml = variance < 0.01 ? '<span style="color:#2ecc71">yes</span>' : '<span style="color:#e74c3c">no</span>';
+  statsDiv.innerHTML =
+    '<div class="section-head">Swarm Stats</div>' +
+    '<div>Variance: ' + variance.toFixed(6) + '</div>' +
+    '<div>Sat range: ' + satMin.toFixed(2) + '% \u2013 ' + satMax.toFixed(2) + '%</div>' +
+    '<div>Total merges: ' + totalMerges + '</div>' +
+    '<div>Converged: ' + convergedHtml + '</div>' +
+    '<div>Merge edges/step: ' + mergeEdges.length + '</div>';
+
+  // Transport stats
+  var tDiv = document.getElementById('transport-stats');
+  var ts = transportStats;
+  var rejectRate = ts.packetsSent > 0 ? ((ts.packetsRejected / ts.packetsSent) * 100).toFixed(1) : '0.0';
+  var leakColor = ts.packetsLeaked > 0 ? '#e74c3c' : '#2ecc71';
+  var leakIcon  = ts.packetsLeaked === 0 ? ' \u2713' : ' \u26A0';
+  tDiv.innerHTML =
+    '<div class="section-head">Transport (CRC-16)</div>' +
+    '<div>Packets sent: ' + ts.packetsSent + '</div>' +
+    '<div>Corrupted: ' + ts.packetsCorrupted + '</div>' +
+    '<div>Rejected: ' + ts.packetsRejected + ' (' + rejectRate + '%)</div>' +
+    '<div>Accepted: ' + ts.packetsAccepted + '</div>' +
+    '<div style="color:' + leakColor + '">Leaked: ' + ts.packetsLeaked + leakIcon + '</div>';
+
+  // Forensic panel — Dead Meadow epoch snapshots for N0
+  var fDiv = document.getElementById('forensic-panel');
+  var refNode = nodes[0];
+  var fHtml = '<div class="section-head" style="color:#9b59b6">Dead Meadow \u2014 N0 Forensics</div>';
+  var hasSnapshots = false;
+  for (var offset = 0; offset < GM_EPOCH_LOG_SIZE; offset++) {
+    var snap = refNode.epochSnapshot(offset);
+    if (snap) {
+      hasSnapshots = true;
+      var label = offset === 0 ? 'prev' : '\u2212' + (offset + 1);
+      fHtml += '<div class="forensic-epoch">' +
+        '<span class="epoch-label">E' + snap.epochId + '</span>' +
+        '<span style="color:#777;margin-left:6px">(' + label + ')</span>' +
+        '<span style="float:right;color:#9b59b6">' + snap.satPct.toFixed(1) + '%</span>' +
+        '<div class="forensic-minibar"><div class="forensic-fill" style="width:' + snap.satPct + '%"></div></div>' +
+      '</div>';
+    }
+  }
+  if (!hasSnapshots) {
+    fHtml += '<div style="color:#444">No epoch snapshots yet \u2014 press Decay</div>';
+  }
+  fDiv.innerHTML = fHtml;
+}
+
+
+// Log
+function addLog(msg, cls) {
+  var log = document.getElementById('log');
+  var div = document.createElement('div');
+  div.textContent = msg;
+  if (cls) div.className = cls;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  while (log.children.length > 100) log.removeChild(log.firstChild);
+}
+function clearLog() { document.getElementById('log').innerHTML = ''; }
+
+
+// =========================================================================
+// Controls
+// =========================================================================
+
+document.getElementById('num-nodes').addEventListener('input', function(e) {
+  document.getElementById('num-nodes-val').textContent = e.target.value;
+});
+
+document.getElementById('autonomy').addEventListener('input', function(e) {
+  document.getElementById('autonomy-val').textContent = (e.target.value / 100).toFixed(2);
+});
+
+document.getElementById('corrupt-rate').addEventListener('input', function(e) {
+  document.getElementById('corrupt-rate-val').textContent = e.target.value + '%';
+});
+
+document.getElementById('auto-epoch-thresh').addEventListener('input', function(e) {
+  var v = parseInt(e.target.value);
+  document.getElementById('auto-epoch-val').textContent = v === 0 ? 'OFF' : v + '%';
+});
+
+document.getElementById('btn-play').addEventListener('click', function() {
+  running = !running;
+  var btn = document.getElementById('btn-play');
+  btn.textContent = running ? '\u23F8 Pause' : '\u25B6 Play';
+  btn.classList.toggle('active', running);
+});
+
+document.getElementById('btn-step').addEventListener('click', function() {
+  running = false;
+  document.getElementById('btn-play').textContent = '\u25B6 Play';
+  document.getElementById('btn-play').classList.remove('active');
+  simStep();
+  render();
+});
+
+document.getElementById('btn-decay').addEventListener('click', function() {
+  for (var i = 0; i < nodes.length; i++) nodes[i].decay();
+  policy.rearm();
+  addLog('Step ' + step + ': Epoch decay \u2014 all nodes cleared, snapshots saved');
+  render();
+});
+
+document.getElementById('btn-reset').addEventListener('click', function() {
+  initSim();
+  resize();
+  render();
+});
+
+document.getElementById('btn-poison').addEventListener('click', function() {
+  poisonMode = !poisonMode;
+  document.getElementById('btn-poison').textContent = poisonMode ? '\u2620 Poisoning!' : 'Poison N0';
+  addLog(poisonMode ? 'Poison mode ON \u2014 N0 seeding 30x/step' : 'Poison mode OFF');
+});
+
+document.getElementById('num-nodes').addEventListener('change', function() {
+  initSim();
+  resize();
+  render();
+});
+
+document.getElementById('topology').addEventListener('change', function() {
+  addLog('Topology changed to: ' + getTopology());
+  render();
+});
+
+
+// =========================================================================
+// Main loop
+// =========================================================================
+
+var lastFrame = 0;
+
+function loop(ts) {
+  var speed = parseInt(document.getElementById('speed').value);
+  var interval = 1000 / speed;
+  if (running && ts - lastFrame >= interval) {
+    simStep();
+    lastFrame = ts;
+  }
+  render();
+  requestAnimationFrame(loop);
+}
+
+window.addEventListener('resize', function() { resize(); render(); });
+
+// Init
+initSim();
+resize();
+render();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
