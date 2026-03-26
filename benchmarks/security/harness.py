@@ -488,6 +488,12 @@ class Fleet:
                                        quorum_k=quorum_k)
             elif node_class == CounterAggNode:
                 node = CounterAggNode(i, policy_variant="basic", quorum_k=1)
+            elif hasattr(node_class, '__name__') and node_class.__name__ == 'CapacityAwareNode':
+                node = node_class(
+                    node_id=i,
+                    mission_key=mission_key,
+                    bloom_m=bloom_m,
+                    bloom_k=bloom_k)
             else:
                 node = node_class(i)
             self.nodes.append(node)

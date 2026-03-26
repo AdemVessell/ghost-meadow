@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from harness import (Fleet, SecurityNode, LocalOnlyNode, ExactGossipNode,
                      CounterAggNode, SimRNG)
+from capacity_aware_node import CapacityAwareNode
 from security_tokens import TokenGenerator
 from security_policy import ZONE_COORDINATED
 from metrics import MetricsCollector
@@ -376,6 +377,7 @@ def _approach_to_class(approach):
         "local_only": LocalOnlyNode,
         "exact_gossip": ExactGossipNode,
         "counter_agg": CounterAggNode,
+        "capacity_aware": CapacityAwareNode,
     }.get(approach, SecurityNode)
 
 

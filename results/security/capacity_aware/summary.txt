@@ -1,0 +1,6 @@
+CAPACITY-AWARE vs COMPOSITE POLICY COMPARISON
+Runtime: 24.0s
+Profile: m=4096, nodes=12
+
+Total false escalations:  composite=43  capacity_aware=39
+Total coord hits:         composite=55  capacity_aware=55
