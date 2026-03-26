@@ -2,9 +2,19 @@
 
 **Swarms don't need to share facts — they need to share priors.**
 
+| | |
+|---|---|
+| **Status** | Simulation-only — all layers implemented, all tests passing, cross-language interop verified |
+| **Strongest evidence** | 7/7 adversarial chaos scenarios passed; CRDT properties formally verified in TLA+; CRC-16 transport with zero integrity leaks across all test runs |
+| **Not yet shown** | No hardware validation — zero bytes have gone over a real radio. No ESP32 flash, no power profiling, no multi-device over-the-air merge, no field test |
+| **Fair criticism** | This is a thoroughly tested *simulation* of an embedded system, not a tested embedded system. The jump from sim to hardware is where most projects fail. Until someone flashes this onto real nodes and runs a real merge over a real radio, the core claim — that OR-merge convergence works under real-world constraints — is unverified. |
+
 Ghost Meadow is a probabilistic memory substrate for embedded swarm systems. Each node maintains a Bloom filter that accumulates local observations and merges with nearby nodes via OR during brief contact windows. Nodes never exchange raw data — they exchange compressed belief states. Over time, the swarm converges on a shared probabilistic picture of the environment without any node knowing what any other node actually saw.
 
-> **Status: tooling-complete.** All layers implemented, all tests passing, cross-language interop verified. Now includes: configurable node profiles, persistence layer, topology visualizer, interactive browser demo, and formal TLA+ spec. No hardware validation yet — zero bytes have gone over a real radio.
+> **Looking for hardware testers.** If you have an ESP32 or STM32 and want to run the first real flash test, see [HARDWARE_WANTED.md](HARDWARE_WANTED.md) or open an issue.
+
+---
+
 
 ## What problem does this solve?
 
