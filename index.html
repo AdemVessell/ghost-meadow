@@ -169,6 +169,11 @@
       <input type="range" id="corrupt-rate" min="0" max="50" value="0">
       <span id="corrupt-rate-val">0%</span>
     </div>
+    <div class="ctrl-group">
+      <label>Auto-Epoch:</label>
+      <input type="range" id="auto-epoch-thresh" min="0" max="95" value="0">
+      <span id="auto-epoch-val">OFF</span>
+    </div>
     <button id="btn-play" class="active">&#9654; Play</button>
     <button id="btn-step">Step</button>
     <button id="btn-decay">Decay</button>
@@ -590,6 +595,24 @@ function simStep() {
     }
   }
 
+  // Auto-epoch — deployment-level trigger (calls the same decay() as manual button)
+  // Equivalent to sim_main.cpp's hardcoded decay at step 250, but threshold-driven
+  var autoThresh = parseInt(document.getElementById('auto-epoch-thresh').value);
+  if (autoThresh > 0) {
+    var triggerDecay = false;
+    for (var i = 0; i < NUM_NODES; i++) {
+      if (nodes[i].saturationPct() >= autoThresh) {
+        triggerDecay = true;
+        break;
+      }
+    }
+    if (triggerDecay) {
+      for (var i = 0; i < nodes.length; i++) nodes[i].decay();
+      policy.rearm();
+      addLog('Step ' + step + ': Auto-epoch decay \u2014 threshold ' + autoThresh + '% reached, snapshots saved');
+    }
+  }
+
   document.getElementById('step-counter').textContent = step;
 }
 
@@ -828,6 +851,11 @@ document.getElementById('autonomy').addEventListener('input', function(e) {
 
 document.getElementById('corrupt-rate').addEventListener('input', function(e) {
   document.getElementById('corrupt-rate-val').textContent = e.target.value + '%';
+});
+
+document.getElementById('auto-epoch-thresh').addEventListener('input', function(e) {
+  var v = parseInt(e.target.value);
+  document.getElementById('auto-epoch-val').textContent = v === 0 ? 'OFF' : v + '%';
 });
 
 document.getElementById('btn-play').addEventListener('click', function() {
